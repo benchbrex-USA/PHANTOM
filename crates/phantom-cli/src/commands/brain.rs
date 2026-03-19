@@ -1,39 +1,13 @@
 //! `phantom brain` — Query and manage the Knowledge Brain.
+//! `phantom brain search <query>` — Interactive TUI search panel.
 
 use phantom_brain::knowledge::KNOWLEDGE_FILES;
 
+use crate::dashboard;
+
 pub async fn search(query: &str) -> anyhow::Result<()> {
-    println!("\x1b[1mKnowledge Brain Search\x1b[0m\n");
-    println!("Query: \"{}\"\n", query);
-
-    // Check if ChromaDB is reachable
-    let config = phantom_brain::config::BrainConfig::default();
-    let client = phantom_brain::chromadb::ChromaClient::new(&config.chromadb_url);
-
-    match client.health_check().await {
-        Ok(true) => {
-            println!(
-                "\x1b[32m\u{2713}\x1b[0m ChromaDB is running at {}",
-                config.chromadb_url
-            );
-
-            // Try to query
-            println!("\nSearching...");
-            println!("\x1b[33mKnowledge Brain not yet ingested. Run `phantom brain update --file <path>` first.\x1b[0m");
-        }
-        _ => {
-            println!(
-                "\x1b[31m\u{2717}\x1b[0m ChromaDB not reachable at {}",
-                config.chromadb_url
-            );
-            println!("\nTo start ChromaDB:");
-            println!("  docker run -p 8000:8000 chromadb/chroma");
-            println!("  # or");
-            println!("  pip install chromadb && chroma run");
-        }
-    }
-
-    Ok(())
+    // Launch the interactive brain search TUI
+    dashboard::run_brain_search(query).await
 }
 
 pub async fn update(file: &str) -> anyhow::Result<()> {

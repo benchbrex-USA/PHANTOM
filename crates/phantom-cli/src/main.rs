@@ -6,8 +6,7 @@
 use clap::{Parser, Subcommand};
 
 mod commands;
-#[allow(dead_code)]
-mod dashboard;
+pub(crate) mod dashboard;
 
 #[derive(Parser)]
 #[command(
@@ -76,6 +75,13 @@ enum Commands {
 
     /// Show infrastructure status
     Infra,
+
+    /// Update Phantom to the latest release
+    SelfUpdate {
+        /// Force update even if already on latest version
+        #[arg(long)]
+        force: bool,
+    },
 
     /// Query the Knowledge Brain directly
     Brain {
@@ -183,6 +189,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Agents => commands::agents::run().await,
         Commands::Logs { agent } => commands::logs::run(agent).await,
         Commands::Infra => commands::infra::run().await,
+        Commands::SelfUpdate { force } => commands::self_update::run(force).await,
         Commands::Brain { action } => match action {
             BrainAction::Search { query } => commands::brain::search(&query).await,
             BrainAction::Update { file } => commands::brain::update(&file).await,

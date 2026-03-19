@@ -176,6 +176,7 @@ impl std::fmt::Display for TaskStatus {
 }
 
 /// The task execution DAG — manages task lifecycle, ordering, and parallel execution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskGraph {
     /// All tasks indexed by ID
     tasks: HashMap<String, Task>,

@@ -10,6 +10,8 @@
 //!   Phase 6: DEPLOY     (15-30m)  — Push → CI → Docker → deploy → DNS → TLS → health
 //!   Phase 7: DELIVER    (5 min)   — Report, URLs, credentials, architecture log
 
+pub mod executor;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 

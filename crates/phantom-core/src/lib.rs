@@ -15,7 +15,9 @@
 pub mod agent_manager;
 pub mod audit;
 pub mod errors;
+pub mod framework_ingestion;
 pub mod job_queue;
+pub mod macos;
 pub mod message_bus;
 pub mod pipeline;
 pub mod self_healer;
@@ -24,6 +26,14 @@ pub mod task_graph;
 pub use agent_manager::{AgentHandle, AgentManager, AgentState};
 pub use audit::{AuditEntry, AuditLog};
 pub use errors::CoreError;
+pub use framework_ingestion::{
+    ComponentDag, ComponentExtractor, ExecutionPlan, ExtractedArchitecture, IngestionPipeline,
+    MarkdownParser, ParsedFramework, PlanGenerator,
+};
+pub use macos::{
+    BrowserAutomation, ClipboardBridge, KeychainManager, LaunchctlManager, OsascriptBridge,
+    ScreenCapture,
+};
 pub use message_bus::{Message, MessageBus, MessageKind};
 pub use pipeline::{BuildPhase, BuildPipeline};
 pub use self_healer::{HealingLayer, HealingResult, SelfHealer};

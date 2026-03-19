@@ -7,4 +7,5 @@ pub mod doctor;
 pub mod infra;
 pub mod logs;
 pub mod master;
+pub mod self_update;
 pub mod status;

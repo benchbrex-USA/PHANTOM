@@ -1,5 +1,38 @@
-/target
+# Rust / Cargo
+/target/
+**/*.rs.bk
+*.pdb
+
+# macOS
 .DS_Store
+._*
+.AppleDouble
+.LSOverride
+Icon?
+.Spotlight-V100
+.Trashes
+
+# IDE
+.idea/
+.vscode/
 *.swp
 *.swo
+*~
+
+# Environment & secrets
 .env
+.env.*
+*.key
+*.pem
+*.p12
+phantom_keys.json
+
+# Build artifacts
+*.o
+*.d
+*.dylib
+*.so
+
+# Phantom runtime
+.phantom/
+*.checkpoint.json

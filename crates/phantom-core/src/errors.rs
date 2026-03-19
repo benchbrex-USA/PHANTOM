@@ -43,4 +43,13 @@ pub enum CoreError {
 
     #[error("invalid state transition from {from} to {to}")]
     InvalidStateTransition { from: String, to: String },
+
+    #[error("framework ingestion error: {0}")]
+    IngestionError(String),
+
+    #[error("plan not approved by owner")]
+    PlanNotApproved,
+
+    #[error("macOS system error: {0}")]
+    MacOsError(String),
 }
