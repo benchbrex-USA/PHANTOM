@@ -54,7 +54,7 @@ impl BuildPhase {
     /// Estimated duration in seconds.
     pub fn estimated_seconds(&self) -> u32 {
         match self {
-            Self::Ingest => 300,         // 5 min
+            Self::Ingest => 300,          // 5 min
             Self::Infrastructure => 1500, // 25 min avg
             Self::Architecture => 900,    // 15 min
             Self::Code => 7200,           // 2h avg
@@ -227,7 +227,10 @@ impl BuildPipeline {
 
     /// Total estimated time in seconds.
     pub fn total_estimated_seconds(&self) -> u32 {
-        BuildPhase::all().iter().map(|p| p.estimated_seconds()).sum()
+        BuildPhase::all()
+            .iter()
+            .map(|p| p.estimated_seconds())
+            .sum()
     }
 
     /// Get the status of a specific phase.

@@ -116,6 +116,12 @@ pub struct HealthChecker {
     failure_threshold: u32,
 }
 
+impl Default for HealthChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HealthChecker {
     pub fn new() -> Self {
         Self {
@@ -340,7 +346,11 @@ mod tests {
         assert_eq!(checker.critical_resources().len(), 1);
 
         // Recover
-        checker.record_result(HealthCheckResult::healthy("vm-1", Provider::OracleCloud, 30));
+        checker.record_result(HealthCheckResult::healthy(
+            "vm-1",
+            Provider::OracleCloud,
+            30,
+        ));
         assert!(checker.critical_resources().is_empty());
         assert!(checker.all_healthy());
     }
@@ -351,7 +361,11 @@ mod tests {
         checker.add_resource(test_resource("vm-1", Provider::OracleCloud));
         checker.add_resource(test_resource("db-1", Provider::Supabase));
 
-        checker.record_result(HealthCheckResult::healthy("vm-1", Provider::OracleCloud, 20));
+        checker.record_result(HealthCheckResult::healthy(
+            "vm-1",
+            Provider::OracleCloud,
+            20,
+        ));
         checker.record_result(HealthCheckResult::unhealthy(
             "db-1",
             Provider::Supabase,
@@ -368,7 +382,11 @@ mod tests {
     fn test_remove_resource() {
         let mut checker = HealthChecker::new();
         checker.add_resource(test_resource("vm-1", Provider::OracleCloud));
-        checker.record_result(HealthCheckResult::healthy("vm-1", Provider::OracleCloud, 20));
+        checker.record_result(HealthCheckResult::healthy(
+            "vm-1",
+            Provider::OracleCloud,
+            20,
+        ));
         assert_eq!(checker.resource_count(), 1);
 
         checker.remove_resource("vm-1");

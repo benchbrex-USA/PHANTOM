@@ -20,7 +20,7 @@ pub async fn estimate(framework: &str) -> anyhow::Result<()> {
     println!();
 
     // Estimate tokens per agent based on framework size
-    let complexity_factor = (word_count as f64 / 1000.0).max(1.0).min(10.0);
+    let complexity_factor = (word_count as f64 / 1000.0).clamp(1.0, 10.0);
 
     println!("\x1b[1;34mEstimated API Usage\x1b[0m");
     println!(
@@ -81,7 +81,9 @@ pub async fn estimate(framework: &str) -> anyhow::Result<()> {
         "\x1b[1mEstimated total cost: ${:.2}\x1b[0m (API usage only)",
         total_cost
     );
-    println!("\x1b[90mNote: Estimates based on framework complexity. Actual usage may vary.\x1b[0m");
+    println!(
+        "\x1b[90mNote: Estimates based on framework complexity. Actual usage may vary.\x1b[0m"
+    );
 
     Ok(())
 }

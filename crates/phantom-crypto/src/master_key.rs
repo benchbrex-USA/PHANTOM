@@ -3,9 +3,9 @@
 //! Passphrase → Argon2id → 256-bit master key → HKDF → sub-keys.
 //! Master key is NEVER stored. Derived in-memory, zeroized on drop.
 
+use crate::aes256gcm::EncryptionKey;
 use crate::argon2id::{self, DerivedKey};
 use crate::hkdf_keys::{self, info, DerivedSubKey};
-use crate::aes256gcm::EncryptionKey;
 use crate::CryptoError;
 
 /// The live master key session. Exists only in memory.
@@ -42,11 +42,8 @@ impl MasterKeySession {
 
     /// Derive the infrastructure encryption key.
     pub fn derive_infra_key(&self) -> Result<EncryptionKey, CryptoError> {
-        let sub = hkdf_keys::derive_subkey(
-            self.master_key.as_bytes(),
-            None,
-            info::INFRASTRUCTURE_KEY,
-        )?;
+        let sub =
+            hkdf_keys::derive_subkey(self.master_key.as_bytes(), None, info::INFRASTRUCTURE_KEY)?;
         Ok(EncryptionKey::from_bytes(*sub.as_bytes()))
     }
 
@@ -58,15 +55,15 @@ impl MasterKeySession {
 
     /// Derive the license signing key material.
     pub fn derive_license_signing_material(&self) -> Result<DerivedSubKey, CryptoError> {
-        hkdf_keys::derive_subkey(
-            self.master_key.as_bytes(),
-            None,
-            info::LICENSE_SIGNING_KEY,
-        )
+        hkdf_keys::derive_subkey(self.master_key.as_bytes(), None, info::LICENSE_SIGNING_KEY)
     }
 
     /// Derive an agent-scoped key for a specific agent + task.
-    pub fn derive_agent_key(&self, agent_id: &str, task_id: &str) -> Result<EncryptionKey, CryptoError> {
+    pub fn derive_agent_key(
+        &self,
+        agent_id: &str,
+        task_id: &str,
+    ) -> Result<EncryptionKey, CryptoError> {
         let info = format!("phantom-agent-key-v1:{}:{}", agent_id, task_id);
         let sub = hkdf_keys::derive_subkey(self.master_key.as_bytes(), None, info.as_bytes())?;
         Ok(EncryptionKey::from_bytes(*sub.as_bytes()))

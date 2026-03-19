@@ -80,8 +80,8 @@ pub fn render(frame: &mut Frame, state: &DashboardState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Header
-            Constraint::Length(3),  // Progress bar
+            Constraint::Length(3), // Header
+            Constraint::Length(3), // Progress bar
             Constraint::Min(10),   // Main content
             Constraint::Length(8), // Logs
         ])
@@ -124,13 +124,14 @@ fn render_header(frame: &mut Frame, area: Rect, state: &DashboardState) {
 
 fn render_progress(frame: &mut Frame, area: Rect, state: &DashboardState) {
     let progress = Gauge::default()
-        .block(Block::default().borders(Borders::ALL).title("Pipeline Progress"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Pipeline Progress"),
+        )
         .gauge_style(Style::default().fg(Color::Green))
         .ratio(state.phase_progress.clamp(0.0, 1.0))
-        .label(format!(
-            "{:.0}%",
-            state.phase_progress * 100.0
-        ));
+        .label(format!("{:.0}%", state.phase_progress * 100.0));
 
     frame.render_widget(progress, area);
 }
@@ -189,8 +190,7 @@ fn render_logs(frame: &mut Frame, area: Rect, state: &DashboardState) {
         .map(|line| Line::from(line.as_str()))
         .collect();
 
-    let logs = Paragraph::new(log_text)
-        .block(Block::default().borders(Borders::ALL).title("Logs"));
+    let logs = Paragraph::new(log_text).block(Block::default().borders(Borders::ALL).title("Logs"));
 
     frame.render_widget(logs, area);
 }

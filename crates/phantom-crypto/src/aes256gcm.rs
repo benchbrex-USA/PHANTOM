@@ -4,7 +4,7 @@
 
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, AeadCore, Nonce,
+    AeadCore, Aes256Gcm, Nonce,
 };
 use zeroize::Zeroize;
 
@@ -30,8 +30,7 @@ impl EncryptionKey {
     pub fn generate() -> Self {
         let mut bytes = [0u8; KEY_LEN];
         use rand::RngCore;
-        rand::thread_rng()
-            .fill_bytes(&mut bytes);
+        rand::thread_rng().fill_bytes(&mut bytes);
         Self { bytes }
     }
 

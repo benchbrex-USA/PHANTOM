@@ -13,13 +13,13 @@
 //! Query latency target: <50ms
 
 pub mod chromadb;
-pub mod embeddings;
-pub mod knowledge;
 pub mod chunker;
-pub mod errors;
 pub mod config;
+pub mod embeddings;
+pub mod errors;
+pub mod knowledge;
 
-pub use errors::BrainError;
-pub use knowledge::{KnowledgeBrain, KnowledgeChunk, KnowledgeQuery};
 pub use chunker::MarkdownChunker;
 pub use config::BrainConfig;
+pub use errors::BrainError;
+pub use knowledge::{KnowledgeBrain, KnowledgeChunk, KnowledgeQuery};

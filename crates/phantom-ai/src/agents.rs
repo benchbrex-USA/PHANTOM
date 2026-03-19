@@ -219,7 +219,10 @@ impl AgentConfig {
 
 /// Build configs for the full 8-agent team.
 pub fn full_team_configs() -> Vec<AgentConfig> {
-    ALL_ROLES.iter().map(|r| AgentConfig::for_role(*r)).collect()
+    ALL_ROLES
+        .iter()
+        .map(|r| AgentConfig::for_role(*r))
+        .collect()
 }
 
 #[cfg(test)]

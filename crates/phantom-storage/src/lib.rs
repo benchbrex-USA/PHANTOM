@@ -4,12 +4,12 @@
 //! Everything is encrypted with AES-256-GCM before leaving memory.
 //! Remote servers only ever see opaque ciphertext.
 
-pub mod vault;
+pub mod errors;
 pub mod r2_client;
 pub mod state;
-pub mod errors;
+pub mod vault;
 
 pub use errors::StorageError;
-pub use vault::{Vault, VaultEntry};
-pub use r2_client::{R2Client, R2Config, BlobIndex, BlobMetadata, StorageUsage};
+pub use r2_client::{BlobIndex, BlobMetadata, R2Client, R2Config, StorageUsage};
 pub use state::{RemoteState, StateEntry, StateSummary};
+pub use vault::{Vault, VaultEntry};

@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use automerge::{AutoCommit, ReadDoc, sync::SyncDoc, transaction::Transactable};
+use automerge::{sync::SyncDoc, transaction::Transactable, AutoCommit, ReadDoc};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
@@ -25,6 +25,12 @@ pub struct CrdtSync {
     sync_states: HashMap<String, automerge::sync::State>,
     /// Number of completed sync rounds.
     sync_rounds: u64,
+}
+
+impl Default for CrdtSync {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CrdtSync {
@@ -114,10 +120,7 @@ impl CrdtSync {
     /// Generate a sync message for the given peer.
     /// Returns `None` if the peer is already up to date.
     pub fn generate_sync_message(&mut self, peer_id: &str) -> Option<Vec<u8>> {
-        let state = self
-            .sync_states
-            .entry(peer_id.to_string())
-            .or_insert_with(automerge::sync::State::new);
+        let state = self.sync_states.entry(peer_id.to_string()).or_default();
 
         self.doc
             .sync()
@@ -126,15 +129,8 @@ impl CrdtSync {
     }
 
     /// Receive a sync message from a peer, merging their changes.
-    pub fn receive_sync_message(
-        &mut self,
-        peer_id: &str,
-        message: &[u8],
-    ) -> Result<(), NetError> {
-        let state = self
-            .sync_states
-            .entry(peer_id.to_string())
-            .or_insert_with(automerge::sync::State::new);
+    pub fn receive_sync_message(&mut self, peer_id: &str, message: &[u8]) -> Result<(), NetError> {
+        let state = self.sync_states.entry(peer_id.to_string()).or_default();
 
         let msg = automerge::sync::Message::decode(message)
             .map_err(|e| NetError::SyncFailed(format!("invalid sync message: {e}")))?;

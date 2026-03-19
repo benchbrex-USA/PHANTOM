@@ -71,8 +71,12 @@ pub fn auth_check_command(provider: Provider) -> Option<&'static str> {
         Provider::Vercel => Some("vercel whoami"),
         Provider::Railway => Some("railway whoami"),
         Provider::Supabase => Some("supabase projects list"),
-        Provider::OracleCloud => Some("oci iam user get --user-id $(oci iam user list --query 'data[0].id' --raw-output)"),
-        Provider::GoogleCloud => Some("gcloud auth list --filter=status:ACTIVE --format='value(account)'"),
+        Provider::OracleCloud => Some(
+            "oci iam user get --user-id $(oci iam user list --query 'data[0].id' --raw-output)",
+        ),
+        Provider::GoogleCloud => {
+            Some("gcloud auth list --filter=status:ACTIVE --format='value(account)'")
+        }
         Provider::AwsFreeTier => Some("aws sts get-caller-identity"),
         _ => None,
     }
@@ -111,6 +115,12 @@ pub struct AccountManager {
     statuses: Vec<AccountStatus>,
 }
 
+impl Default for AccountManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AccountManager {
     pub fn new() -> Self {
         let statuses = ALL_PROVIDERS
@@ -133,10 +143,7 @@ impl AccountManager {
         match status.auth_method {
             AuthMethod::CliLogin => {
                 if let Some(cmd) = auth_check_command(provider) {
-                    let output = std::process::Command::new("sh")
-                        .arg("-c")
-                        .arg(cmd)
-                        .output();
+                    let output = std::process::Command::new("sh").arg("-c").arg(cmd).output();
 
                     match output {
                         Ok(o) if o.status.success() => {
@@ -225,7 +232,10 @@ mod tests {
 
     #[test]
     fn test_env_var_mapping() {
-        assert_eq!(env_var_for(Provider::Cloudflare), Some("CLOUDFLARE_API_TOKEN"));
+        assert_eq!(
+            env_var_for(Provider::Cloudflare),
+            Some("CLOUDFLARE_API_TOKEN")
+        );
         assert_eq!(env_var_for(Provider::Upstash), Some("UPSTASH_API_KEY"));
         assert_eq!(env_var_for(Provider::GitHub), None);
     }

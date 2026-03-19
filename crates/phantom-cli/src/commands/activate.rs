@@ -51,12 +51,7 @@ pub async fn run(key: &str) -> anyhow::Result<()> {
             "\x1b[90m-\x1b[0m"
         };
         let msg = status.message.as_deref().unwrap_or("");
-        println!(
-            "  {} {:<20} {}",
-            icon,
-            status.provider.display_name(),
-            msg
-        );
+        println!("  {} {:<20} {}", icon, status.provider.display_name(), msg);
     }
 
     println!("\n\x1b[32mPhantom activated successfully.\x1b[0m");

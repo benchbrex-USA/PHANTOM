@@ -102,9 +102,10 @@ impl EmbeddingGenerator {
         }
 
         // Try TEI format first (direct array of arrays)
-        let body = resp.text().await.map_err(|e| {
-            BrainError::EmbeddingFailed(format!("response read error: {}", e))
-        })?;
+        let body = resp
+            .text()
+            .await
+            .map_err(|e| BrainError::EmbeddingFailed(format!("response read error: {}", e)))?;
 
         // Try parsing as TEI response (Vec<Vec<f32>>)
         if let Ok(tei_resp) = serde_json::from_str::<TeiResponse>(&body) {
@@ -125,8 +126,8 @@ impl EmbeddingGenerator {
 
     /// Generate embeddings via Python subprocess (sentence-transformers).
     async fn embed_via_python(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, BrainError> {
-        let texts_json = serde_json::to_string(texts)
-            .map_err(|e| BrainError::EmbeddingFailed(e.to_string()))?;
+        let texts_json =
+            serde_json::to_string(texts).map_err(|e| BrainError::EmbeddingFailed(e.to_string()))?;
 
         // Python script that uses sentence-transformers to generate embeddings
         let python_script = format!(

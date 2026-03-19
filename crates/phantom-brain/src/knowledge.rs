@@ -147,11 +147,7 @@ impl KnowledgeBrain {
 
     /// Ingest a knowledge file — chunk it, embed it, store in ChromaDB.
     #[instrument(skip(self, content), fields(filename))]
-    pub async fn ingest_file(
-        &self,
-        filename: &str,
-        content: &str,
-    ) -> Result<usize, BrainError> {
+    pub async fn ingest_file(&self, filename: &str, content: &str) -> Result<usize, BrainError> {
         let collection = self
             .collection
             .as_ref()
@@ -169,7 +165,11 @@ impl KnowledgeBrain {
             return Ok(0);
         }
 
-        info!(filename, chunk_count = chunks.len(), "chunked knowledge file");
+        info!(
+            filename,
+            chunk_count = chunks.len(),
+            "chunked knowledge file"
+        );
 
         // Step 3: Generate embeddings for all chunks
         let texts: Vec<String> = chunks.iter().map(|c| c.content.clone()).collect();
@@ -252,10 +252,7 @@ impl KnowledgeBrain {
     ///
     /// Returns knowledge chunks relevant to the query, optionally filtered by agent role.
     #[instrument(skip(self))]
-    pub async fn query(
-        &self,
-        query: &KnowledgeQuery,
-    ) -> Result<Vec<KnowledgeChunk>, BrainError> {
+    pub async fn query(&self, query: &KnowledgeQuery) -> Result<Vec<KnowledgeChunk>, BrainError> {
         let collection = self
             .collection
             .as_ref()
@@ -340,13 +337,7 @@ impl KnowledgeBrain {
         chunks
             .iter()
             .enumerate()
-            .map(|(i, chunk)| {
-                format!(
-                    "[Reference {}] {}\n",
-                    i + 1,
-                    chunk.as_context_reference()
-                )
-            })
+            .map(|(i, chunk)| format!("[Reference {}] {}\n", i + 1, chunk.as_context_reference()))
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -391,22 +382,38 @@ impl std::fmt::Display for BrainDependencyStatus {
         writeln!(
             f,
             "  ChromaDB:         {}",
-            if self.chromadb_available { "OK" } else { "NOT AVAILABLE" }
+            if self.chromadb_available {
+                "OK"
+            } else {
+                "NOT AVAILABLE"
+            }
         )?;
         writeln!(
             f,
             "  Embedding Server: {}",
-            if self.embedding_server_available { "OK" } else { "NOT AVAILABLE" }
+            if self.embedding_server_available {
+                "OK"
+            } else {
+                "NOT AVAILABLE"
+            }
         )?;
         writeln!(
             f,
             "  Python (fallback): {}",
-            if self.python_available { "OK" } else { "NOT AVAILABLE" }
+            if self.python_available {
+                "OK"
+            } else {
+                "NOT AVAILABLE"
+            }
         )?;
         writeln!(
             f,
             "  Embedding Ready:  {}",
-            if self.embedding_available { "OK" } else { "NOT AVAILABLE" }
+            if self.embedding_available {
+                "OK"
+            } else {
+                "NOT AVAILABLE"
+            }
         )
     }
 }

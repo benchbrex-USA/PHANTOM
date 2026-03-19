@@ -12,19 +12,19 @@
 //! - Law 8: Master key holder has absolute power (halt, kill)
 //! - Law 9: Every action is audited
 
-pub mod task_graph;
 pub mod agent_manager;
-pub mod message_bus;
-pub mod self_healer;
-pub mod job_queue;
 pub mod audit;
-pub mod pipeline;
 pub mod errors;
+pub mod job_queue;
+pub mod message_bus;
+pub mod pipeline;
+pub mod self_healer;
+pub mod task_graph;
 
+pub use agent_manager::{AgentHandle, AgentManager, AgentState};
+pub use audit::{AuditEntry, AuditLog};
 pub use errors::CoreError;
+pub use message_bus::{Message, MessageBus, MessageKind};
+pub use pipeline::{BuildPhase, BuildPipeline};
+pub use self_healer::{HealingLayer, HealingResult, SelfHealer};
 pub use task_graph::{Task, TaskGraph, TaskStatus};
-pub use agent_manager::{AgentManager, AgentHandle, AgentState};
-pub use message_bus::{MessageBus, Message, MessageKind};
-pub use self_healer::{SelfHealer, HealingLayer, HealingResult};
-pub use audit::{AuditLog, AuditEntry};
-pub use pipeline::{BuildPipeline, BuildPhase};

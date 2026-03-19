@@ -55,7 +55,9 @@ fn run_command(program: &str, args: &[&str]) -> Option<String> {
         .ok()
         .and_then(|o| {
             if o.status.success() {
-                String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+                String::from_utf8(o.stdout)
+                    .ok()
+                    .map(|s| s.trim().to_string())
             } else {
                 None
             }
@@ -64,22 +66,17 @@ fn run_command(program: &str, args: &[&str]) -> Option<String> {
 
 fn get_mac_address() -> Option<String> {
     // macOS: primary ethernet MAC
-    run_command("ifconfig", &["en0"])
-        .and_then(|output| {
-            output
-                .lines()
-                .find(|l| l.contains("ether"))
-                .map(|l| l.trim().to_string())
-        })
+    run_command("ifconfig", &["en0"]).and_then(|output| {
+        output
+            .lines()
+            .find(|l| l.contains("ether"))
+            .map(|l| l.trim().to_string())
+    })
 }
 
 fn get_cpu_serial() -> Option<String> {
     // macOS: hardware serial number
-    run_command(
-        "ioreg",
-        &["-l", "-d", "2"],
-    )
-    .and_then(|output| {
+    run_command("ioreg", &["-l", "-d", "2"]).and_then(|output| {
         output
             .lines()
             .find(|l| l.contains("IOPlatformSerialNumber"))
@@ -89,22 +86,17 @@ fn get_cpu_serial() -> Option<String> {
 
 fn get_disk_uuid() -> Option<String> {
     // macOS: boot volume UUID
-    run_command("diskutil", &["info", "/"])
-        .and_then(|output| {
-            output
-                .lines()
-                .find(|l| l.contains("Volume UUID"))
-                .and_then(|l| l.split(':').nth(1).map(|s| s.trim().to_string()))
-        })
+    run_command("diskutil", &["info", "/"]).and_then(|output| {
+        output
+            .lines()
+            .find(|l| l.contains("Volume UUID"))
+            .and_then(|l| l.split(':').nth(1).map(|s| s.trim().to_string()))
+    })
 }
 
 fn get_os_install_uuid() -> Option<String> {
     // macOS: hardware UUID
-    run_command(
-        "ioreg",
-        &["-rd1", "-c", "IOPlatformExpertDevice"],
-    )
-    .and_then(|output| {
+    run_command("ioreg", &["-rd1", "-c", "IOPlatformExpertDevice"]).and_then(|output| {
         output
             .lines()
             .find(|l| l.contains("IOPlatformUUID"))

@@ -51,7 +51,11 @@ pub struct Task {
 
 impl Task {
     /// Create a new pending task.
-    pub fn new(name: impl Into<String>, description: impl Into<String>, agent_role: impl Into<String>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        agent_role: impl Into<String>,
+    ) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             name: name.into(),
@@ -179,6 +183,12 @@ pub struct TaskGraph {
     order: Vec<String>,
 }
 
+impl Default for TaskGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TaskGraph {
     pub fn new() -> Self {
         Self {
@@ -247,7 +257,9 @@ impl TaskGraph {
 
     /// Check if all tasks are completed.
     pub fn is_complete(&self) -> bool {
-        self.tasks.values().all(|t| t.status == TaskStatus::Completed)
+        self.tasks
+            .values()
+            .all(|t| t.status == TaskStatus::Completed)
     }
 
     /// Check if the graph has any terminal failures (failed + can't retry).
@@ -325,9 +337,7 @@ impl TaskGraph {
         for task in self.tasks.values() {
             in_degree.entry(&task.id).or_insert(0);
             for dep_id in &task.dependencies {
-                adj.entry(dep_id.as_str())
-                    .or_default()
-                    .push(&task.id);
+                adj.entry(dep_id.as_str()).or_default().push(&task.id);
                 *in_degree.entry(&task.id).or_insert(0) += 1;
             }
         }
@@ -376,9 +386,7 @@ impl TaskGraph {
         for task in self.tasks.values() {
             in_degree.entry(&task.id).or_insert(0);
             for dep_id in &task.dependencies {
-                adj.entry(dep_id.as_str())
-                    .or_default()
-                    .push(&task.id);
+                adj.entry(dep_id.as_str()).or_default().push(&task.id);
                 *in_degree.entry(&task.id).or_insert(0) += 1;
             }
         }
@@ -532,7 +540,10 @@ mod tests {
         let id = task.id.clone();
         graph.add_task(task).unwrap();
 
-        let dup = Task { id, ..make_task("t1-dup", "cto") };
+        let dup = Task {
+            id,
+            ..make_task("t1-dup", "cto")
+        };
         assert!(graph.add_task(dup).is_err());
     }
 
@@ -697,7 +708,10 @@ mod tests {
         graph.cancel_all();
 
         // t1 stays completed, t2 gets cancelled
-        assert_eq!(graph.get_task(&t1_id).unwrap().status, TaskStatus::Completed);
+        assert_eq!(
+            graph.get_task(&t1_id).unwrap().status,
+            TaskStatus::Completed
+        );
         assert_eq!(graph.stats().cancelled, 1);
     }
 
@@ -730,7 +744,9 @@ mod tests {
         let t1 = make_task("t1", "cto").with_estimate(60);
         let t1_id = t1.id.clone();
         graph.add_task(t1).unwrap();
-        graph.add_task(make_task("t2", "backend").with_estimate(120)).unwrap();
+        graph
+            .add_task(make_task("t2", "backend").with_estimate(120))
+            .unwrap();
 
         graph.get_task_mut(&t1_id).unwrap().complete(None);
 

@@ -62,9 +62,9 @@ impl PeerInfo {
     pub fn record_sync(&mut self, latency_ms: f64) {
         self.sync_count += 1;
         // Running average
-        self.avg_sync_latency_ms =
-            (self.avg_sync_latency_ms * (self.sync_count - 1) as f64 + latency_ms)
-                / self.sync_count as f64;
+        self.avg_sync_latency_ms = (self.avg_sync_latency_ms * (self.sync_count - 1) as f64
+            + latency_ms)
+            / self.sync_count as f64;
         self.touch();
     }
 
@@ -197,8 +197,7 @@ impl PeerTable {
             .peers
             .values()
             .filter(|p| {
-                p.state == PeerState::Disconnected
-                    && p.silence_duration_secs() > max_silence_secs
+                p.state == PeerState::Disconnected && p.silence_duration_secs() > max_silence_secs
             })
             .map(|p| p.peer_id.clone())
             .collect();

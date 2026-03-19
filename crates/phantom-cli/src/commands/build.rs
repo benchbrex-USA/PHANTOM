@@ -35,9 +35,8 @@ pub async fn run(
         return Ok(());
     }
 
-    let framework_path = framework.ok_or_else(|| {
-        anyhow::anyhow!("--framework <file> is required for a full build")
-    })?;
+    let framework_path = framework
+        .ok_or_else(|| anyhow::anyhow!("--framework <file> is required for a full build"))?;
 
     // Verify framework file exists
     if !std::path::Path::new(&framework_path).exists() {
@@ -49,14 +48,38 @@ pub async fn run(
     // Show the 8-phase pipeline
     let _pipeline = BuildPipeline::new(Some(framework_path.clone()));
     let phases = [
-        (BuildPhase::Ingest, "Parse framework, build task graph, plan"),
-        (BuildPhase::Infrastructure, "Provision servers, create accounts, setup CI/CD"),
-        (BuildPhase::Architecture, "System design, DB schema, API contracts, ADRs"),
-        (BuildPhase::Code, "4 parallel streams (backend, frontend, devops, integrations)"),
-        (BuildPhase::Test, "Unit + integration + E2E (80% coverage gate)"),
-        (BuildPhase::Security, "Dependency audit, OWASP, auth review, pen test"),
-        (BuildPhase::Deploy, "Push > CI > Docker > deploy > DNS > TLS"),
-        (BuildPhase::Deliver, "Generate report, URLs, credentials, handoff"),
+        (
+            BuildPhase::Ingest,
+            "Parse framework, build task graph, plan",
+        ),
+        (
+            BuildPhase::Infrastructure,
+            "Provision servers, create accounts, setup CI/CD",
+        ),
+        (
+            BuildPhase::Architecture,
+            "System design, DB schema, API contracts, ADRs",
+        ),
+        (
+            BuildPhase::Code,
+            "4 parallel streams (backend, frontend, devops, integrations)",
+        ),
+        (
+            BuildPhase::Test,
+            "Unit + integration + E2E (80% coverage gate)",
+        ),
+        (
+            BuildPhase::Security,
+            "Dependency audit, OWASP, auth review, pen test",
+        ),
+        (
+            BuildPhase::Deploy,
+            "Push > CI > Docker > deploy > DNS > TLS",
+        ),
+        (
+            BuildPhase::Deliver,
+            "Generate report, URLs, credentials, handoff",
+        ),
     ];
 
     println!("\x1b[1;34mBuild Pipeline\x1b[0m");

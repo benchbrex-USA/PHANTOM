@@ -1,7 +1,7 @@
 //! Phantom wire protocol — message types exchanged between peers.
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Protocol version string.
 pub const PROTOCOL_VERSION: &str = "/phantom/sync/1.0.0";
@@ -103,11 +103,7 @@ mod tests {
 
     #[test]
     fn test_wire_message_roundtrip() {
-        let msg = WireMessage::new(
-            MessageKind::Heartbeat,
-            "peer-123",
-            b"hello".to_vec(),
-        );
+        let msg = WireMessage::new(MessageKind::Heartbeat, "peer-123", b"hello".to_vec());
         let encoded = msg.encode().unwrap();
         let decoded = WireMessage::decode(&encoded).unwrap();
         assert_eq!(decoded.kind, MessageKind::Heartbeat);

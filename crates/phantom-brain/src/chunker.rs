@@ -214,7 +214,7 @@ impl MarkdownChunker {
 /// Check if a line is a markdown heading.
 fn is_heading(line: &str) -> bool {
     let trimmed = line.trim_start();
-    trimmed.starts_with('#') && trimmed.chars().skip_while(|c| *c == '#').next() == Some(' ')
+    trimmed.starts_with('#') && trimmed.chars().find(|c| *c != '#') == Some(' ')
 }
 
 /// Map a knowledge file name to its default agent tags.
@@ -226,56 +226,50 @@ pub fn default_agent_tags(filename: &str) -> Vec<String> {
                 .map(String::from)
                 .collect()
         }
-        f if f.contains("CTO") && f.contains("Technology") => {
-            vec!["cto", "architect", "backend", "frontend", "devops", "qa", "security", "monitor"]
-                .into_iter()
-                .map(String::from)
-                .collect()
-        }
-        f if f.contains("Multi_Agent") || f.contains("Multi-Agent") => {
-            vec!["cto", "monitor"]
-                .into_iter()
-                .map(String::from)
-                .collect()
-        }
-        f if f.contains("Build_Once") => {
-            vec!["cto", "devops", "monitor"]
-                .into_iter()
-                .map(String::from)
-                .collect()
-        }
+        f if f.contains("CTO") && f.contains("Technology") => vec![
+            "cto",
+            "architect",
+            "backend",
+            "frontend",
+            "devops",
+            "qa",
+            "security",
+            "monitor",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect(),
+        f if f.contains("Multi_Agent") || f.contains("Multi-Agent") => vec!["cto", "monitor"]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+        f if f.contains("Build_Once") => vec!["cto", "devops", "monitor"]
+            .into_iter()
+            .map(String::from)
+            .collect(),
         f if f.contains("Full_Stack") || f.contains("Full-Stack") => {
             vec!["backend", "frontend", "qa", "security"]
                 .into_iter()
                 .map(String::from)
                 .collect()
         }
-        f if f.contains("Every_Technology") => {
-            vec!["architect", "cto", "devops"]
-                .into_iter()
-                .map(String::from)
-                .collect()
-        }
+        f if f.contains("Every_Technology") => vec!["architect", "cto", "devops"]
+            .into_iter()
+            .map(String::from)
+            .collect(),
         f if f.contains("Design_Expert") || f.contains("Design") => {
             vec!["frontend"].into_iter().map(String::from).collect()
         }
-        f if f.contains("AI_ML") || f.contains("AI/ML") => {
-            vec!["cto", "backend", "security"]
-                .into_iter()
-                .map(String::from)
-                .collect()
-        }
-        f if f.contains("API_Expert") || f.contains("API") => {
-            vec!["backend", "devops"]
-                .into_iter()
-                .map(String::from)
-                .collect()
-        }
+        f if f.contains("AI_ML") || f.contains("AI/ML") => vec!["cto", "backend", "security"]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+        f if f.contains("API_Expert") || f.contains("API") => vec!["backend", "devops"]
+            .into_iter()
+            .map(String::from)
+            .collect(),
         f if f.contains("AI_Code") && f.contains("Error") => {
-            vec!["qa", "devops"]
-                .into_iter()
-                .map(String::from)
-                .collect()
+            vec!["qa", "devops"].into_iter().map(String::from).collect()
         }
         _ => vec!["cto".to_string()],
     }
@@ -346,14 +340,20 @@ More content here.
         // Create content that's > 200 chars (50 tokens * 4 chars/token)
         let mut content = String::from("# Big Section\n\n");
         for i in 0..20 {
-            content.push_str(&format!("Paragraph {} with enough content to matter.\n\n", i));
+            content.push_str(&format!(
+                "Paragraph {} with enough content to matter.\n\n",
+                i
+            ));
         }
 
         let chunks = chunker
             .chunk_file("test", &content, &["backend".to_string()])
             .unwrap();
 
-        assert!(chunks.len() > 1, "Large section should be split into multiple chunks");
+        assert!(
+            chunks.len() > 1,
+            "Large section should be split into multiple chunks"
+        );
     }
 
     #[test]
@@ -366,10 +366,16 @@ More content here.
     #[test]
     fn test_agent_tags_mapping() {
         assert!(default_agent_tags("The_CTO_Architecture_Framework").contains(&"cto".to_string()));
-        assert!(default_agent_tags("The_CTO_Architecture_Framework").contains(&"architect".to_string()));
-        assert!(default_agent_tags("The_Complete_Design_Expert_Knowledge_Base").contains(&"frontend".to_string()));
+        assert!(
+            default_agent_tags("The_CTO_Architecture_Framework").contains(&"architect".to_string())
+        );
+        assert!(
+            default_agent_tags("The_Complete_Design_Expert_Knowledge_Base")
+                .contains(&"frontend".to_string())
+        );
         assert!(default_agent_tags("AI_Code_GitHub_Errors_Fixes").contains(&"qa".to_string()));
-        assert!(default_agent_tags("The_Complete_API_Expert_Knowledge_Base").contains(&"backend".to_string()));
+        assert!(default_agent_tags("The_Complete_API_Expert_Knowledge_Base")
+            .contains(&"backend".to_string()));
     }
 
     #[test]

@@ -17,7 +17,7 @@ use crate::client::Message;
 /// Approximate tokens from a string (chars / 4, conservative).
 pub fn estimate_tokens(text: &str) -> usize {
     // Claude tokenizer averages ~4 chars per token for English
-    (text.len() + 3) / 4
+    text.len().div_ceil(4)
 }
 
 /// Model context window sizes.
@@ -89,8 +89,11 @@ impl ContextManager {
     /// Add a knowledge chunk (sorted by score, highest first).
     pub fn inject_knowledge(&mut self, chunk: KnowledgeChunk) {
         self.knowledge.push(chunk);
-        self.knowledge
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        self.knowledge.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     /// Add multiple knowledge chunks.
@@ -255,10 +258,7 @@ mod tests {
     use super::*;
 
     fn test_context() -> ContextManager {
-        ContextManager::new(
-            AgentRole::Backend,
-            "You are the Backend Agent.".into(),
-        )
+        ContextManager::new(AgentRole::Backend, "You are the Backend Agent.".into())
     }
 
     #[test]

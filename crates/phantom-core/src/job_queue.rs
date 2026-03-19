@@ -3,8 +3,8 @@
 //! In production, backed by Redis (Upstash). For local development,
 //! uses an in-memory priority queue.
 
-use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,12 @@ pub struct Job {
 }
 
 impl Job {
-    pub fn new(task_id: impl Into<String>, agent_role: impl Into<String>, priority: u32, payload: serde_json::Value) -> Self {
+    pub fn new(
+        task_id: impl Into<String>,
+        agent_role: impl Into<String>,
+        priority: u32,
+        payload: serde_json::Value,
+    ) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             task_id: task_id.into(),
@@ -79,6 +84,12 @@ pub struct JobQueue {
     heap: BinaryHeap<Job>,
     /// Track jobs by ID for status lookups
     jobs: HashMap<String, Job>,
+}
+
+impl Default for JobQueue {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl JobQueue {
@@ -141,7 +152,10 @@ impl JobQueue {
 
     /// Number of queued jobs.
     pub fn queued_count(&self) -> usize {
-        self.jobs.values().filter(|j| j.status == JobStatus::Queued).count()
+        self.jobs
+            .values()
+            .filter(|j| j.status == JobStatus::Queued)
+            .count()
     }
 
     /// Number of dead-lettered jobs.

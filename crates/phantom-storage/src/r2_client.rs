@@ -91,6 +91,12 @@ pub struct BlobIndex {
     blobs: std::collections::HashMap<String, BlobMetadata>,
 }
 
+impl Default for BlobIndex {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BlobIndex {
     pub fn new() -> Self {
         Self {
@@ -188,17 +194,12 @@ impl R2Client {
     /// Create from environment variables.
     pub fn from_env() -> Result<Self, StorageError> {
         let config = R2Config {
-            endpoint_url: std::env::var("R2_ENDPOINT_URL")
-                .unwrap_or_default(),
-            bucket: std::env::var("R2_BUCKET")
-                .unwrap_or_else(|_| "phantom-storage".into()),
-            access_key_id: std::env::var("R2_ACCESS_KEY_ID")
-                .unwrap_or_default(),
-            secret_access_key: std::env::var("R2_SECRET_ACCESS_KEY")
-                .unwrap_or_default(),
+            endpoint_url: std::env::var("R2_ENDPOINT_URL").unwrap_or_default(),
+            bucket: std::env::var("R2_BUCKET").unwrap_or_else(|_| "phantom-storage".into()),
+            access_key_id: std::env::var("R2_ACCESS_KEY_ID").unwrap_or_default(),
+            secret_access_key: std::env::var("R2_SECRET_ACCESS_KEY").unwrap_or_default(),
             region: "auto".into(),
-            key_prefix: std::env::var("R2_KEY_PREFIX")
-                .unwrap_or_else(|_| "phantom/v2/".into()),
+            key_prefix: std::env::var("R2_KEY_PREFIX").unwrap_or_else(|_| "phantom/v2/".into()),
         };
         Ok(Self::new(config))
     }
@@ -224,12 +225,7 @@ impl R2Client {
     }
 
     /// Register a blob after upload.
-    pub fn register_upload(
-        &mut self,
-        key: impl Into<String>,
-        size_bytes: u64,
-        encrypted: bool,
-    ) {
+    pub fn register_upload(&mut self, key: impl Into<String>, size_bytes: u64, encrypted: bool) {
         let key = key.into();
         let metadata = BlobMetadata {
             key: key.clone(),
@@ -256,12 +252,7 @@ impl R2Client {
             bucket: self.config.bucket.clone(),
             blob_count: self.index.len(),
             total_size_bytes: self.index.total_size_bytes(),
-            encrypted_count: self
-                .index
-                .blobs
-                .values()
-                .filter(|b| b.encrypted)
-                .count(),
+            encrypted_count: self.index.blobs.values().filter(|b| b.encrypted).count(),
         }
     }
 }

@@ -26,7 +26,9 @@ pub async fn run(action: MasterAction) -> anyhow::Result<()> {
             println!("  - Expiry timestamp");
             println!("  - Capabilities & tier");
             println!();
-            println!("\x1b[33mRequires initialized master key. Run `phantom master init` first.\x1b[0m");
+            println!(
+                "\x1b[33mRequires initialized master key. Run `phantom master init` first.\x1b[0m"
+            );
         }
         MasterAction::Revoke { key } => {
             println!("\x1b[1mLicense Revocation\x1b[0m\n");
@@ -45,7 +47,10 @@ pub async fn run(action: MasterAction) -> anyhow::Result<()> {
         }
         MasterAction::Kill { id } => {
             println!("\x1b[1mRemote Kill\x1b[0m\n");
-            println!("\x1b[31mWARNING: This will immediately terminate installation: {}\x1b[0m", id);
+            println!(
+                "\x1b[31mWARNING: This will immediately terminate installation: {}\x1b[0m",
+                id
+            );
             println!("The target installation's session keys will be invalidated.");
             println!("\x1b[33mRequires initialized master key.\x1b[0m");
         }
@@ -95,8 +100,13 @@ pub async fn run(action: MasterAction) -> anyhow::Result<()> {
 
             println!("Audit log entries: {}", log.len());
             let integrity = log.verify_integrity().is_ok();
-            println!("Chain integrity: {}\n",
-                if integrity { "\x1b[32mVERIFIED\x1b[0m" } else { "\x1b[31mBROKEN\x1b[0m" }
+            println!(
+                "Chain integrity: {}\n",
+                if integrity {
+                    "\x1b[32mVERIFIED\x1b[0m"
+                } else {
+                    "\x1b[31mBROKEN\x1b[0m"
+                }
             );
 
             if let Ok(json) = log.export_json() {

@@ -1,7 +1,7 @@
 //! Argon2id key derivation for master key.
 //! Master passphrase → Argon2id → 256-bit key. Never stored.
 
-use argon2::{Argon2, Algorithm, Params, Version};
+use argon2::{Algorithm, Argon2, Params, Version};
 use rand::RngCore;
 use zeroize::Zeroize;
 

@@ -78,7 +78,6 @@ struct DeleteRequest {
     ids: Vec<String>,
 }
 
-
 impl ChromaClient {
     /// Create a new ChromaDB client.
     pub fn new(base_url: &str) -> Self {
@@ -279,11 +278,7 @@ impl ChromaClient {
 
     /// Delete documents by ID from a collection.
     #[instrument(skip(self), fields(count = ids.len()))]
-    pub async fn delete(
-        &self,
-        collection_id: &str,
-        ids: Vec<String>,
-    ) -> Result<(), BrainError> {
+    pub async fn delete(&self, collection_id: &str, ids: Vec<String>) -> Result<(), BrainError> {
         let req = DeleteRequest { ids };
 
         let resp = self

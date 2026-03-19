@@ -12,14 +12,20 @@ pub async fn search(query: &str) -> anyhow::Result<()> {
 
     match client.health_check().await {
         Ok(true) => {
-            println!("\x1b[32m\u{2713}\x1b[0m ChromaDB is running at {}", config.chromadb_url);
+            println!(
+                "\x1b[32m\u{2713}\x1b[0m ChromaDB is running at {}",
+                config.chromadb_url
+            );
 
             // Try to query
             println!("\nSearching...");
             println!("\x1b[33mKnowledge Brain not yet ingested. Run `phantom brain update --file <path>` first.\x1b[0m");
         }
         _ => {
-            println!("\x1b[31m\u{2717}\x1b[0m ChromaDB not reachable at {}", config.chromadb_url);
+            println!(
+                "\x1b[31m\u{2717}\x1b[0m ChromaDB not reachable at {}",
+                config.chromadb_url
+            );
             println!("\nTo start ChromaDB:");
             println!("  docker run -p 8000:8000 chromadb/chroma");
             println!("  # or");
@@ -41,7 +47,10 @@ pub async fn update(file: &str) -> anyhow::Result<()> {
     println!();
 
     // Show known knowledge files
-    println!("\x1b[1;34mKnown Knowledge Files ({}):\x1b[0m", KNOWLEDGE_FILES.len());
+    println!(
+        "\x1b[1;34mKnown Knowledge Files ({}):\x1b[0m",
+        KNOWLEDGE_FILES.len()
+    );
     for kf in KNOWLEDGE_FILES {
         println!("  - {}", kf);
     }

@@ -96,6 +96,12 @@ pub struct AuditLog {
     entries: Vec<AuditEntry>,
 }
 
+impl Default for AuditLog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AuditLog {
     pub fn new() -> Self {
         Self {
@@ -261,8 +267,20 @@ mod tests {
     fn test_record_and_verify() {
         let mut log = AuditLog::new();
 
-        log.record("cto-0", AuditAction::AgentSpawned, "CTO agent spawned", serde_json::json!({"model": "claude-opus-4-6"}), None);
-        log.record("backend-0", AuditAction::TaskStarted, "Building API", serde_json::json!({"task_id": "t1"}), Some("API Expert §4".into()));
+        log.record(
+            "cto-0",
+            AuditAction::AgentSpawned,
+            "CTO agent spawned",
+            serde_json::json!({"model": "claude-opus-4-6"}),
+            None,
+        );
+        log.record(
+            "backend-0",
+            AuditAction::TaskStarted,
+            "Building API",
+            serde_json::json!({"task_id": "t1"}),
+            Some("API Expert §4".into()),
+        );
 
         assert_eq!(log.len(), 2);
         assert!(log.verify_integrity().is_ok());
@@ -272,8 +290,20 @@ mod tests {
     fn test_tamper_detection() {
         let mut log = AuditLog::new();
 
-        log.record("cto-0", AuditAction::AgentSpawned, "CTO spawned", serde_json::Value::Null, None);
-        log.record("backend-0", AuditAction::TaskStarted, "task start", serde_json::Value::Null, None);
+        log.record(
+            "cto-0",
+            AuditAction::AgentSpawned,
+            "CTO spawned",
+            serde_json::Value::Null,
+            None,
+        );
+        log.record(
+            "backend-0",
+            AuditAction::TaskStarted,
+            "task start",
+            serde_json::Value::Null,
+            None,
+        );
 
         // Tamper with the first entry
         log.entries[0].description = "TAMPERED".to_string();
@@ -285,9 +315,27 @@ mod tests {
     fn test_chain_integrity() {
         let mut log = AuditLog::new();
 
-        log.record("a", AuditAction::System, "first", serde_json::Value::Null, None);
-        log.record("a", AuditAction::System, "second", serde_json::Value::Null, None);
-        log.record("a", AuditAction::System, "third", serde_json::Value::Null, None);
+        log.record(
+            "a",
+            AuditAction::System,
+            "first",
+            serde_json::Value::Null,
+            None,
+        );
+        log.record(
+            "a",
+            AuditAction::System,
+            "second",
+            serde_json::Value::Null,
+            None,
+        );
+        log.record(
+            "a",
+            AuditAction::System,
+            "third",
+            serde_json::Value::Null,
+            None,
+        );
 
         // First entry's prev_hash should be "genesis"
         assert_eq!(log.entries[0].prev_hash, "genesis");
@@ -302,9 +350,27 @@ mod tests {
     #[test]
     fn test_filter_by_agent() {
         let mut log = AuditLog::new();
-        log.record("cto", AuditAction::TaskCreated, "t1", serde_json::Value::Null, None);
-        log.record("backend", AuditAction::TaskStarted, "t2", serde_json::Value::Null, None);
-        log.record("cto", AuditAction::TaskCreated, "t3", serde_json::Value::Null, None);
+        log.record(
+            "cto",
+            AuditAction::TaskCreated,
+            "t1",
+            serde_json::Value::Null,
+            None,
+        );
+        log.record(
+            "backend",
+            AuditAction::TaskStarted,
+            "t2",
+            serde_json::Value::Null,
+            None,
+        );
+        log.record(
+            "cto",
+            AuditAction::TaskCreated,
+            "t3",
+            serde_json::Value::Null,
+            None,
+        );
 
         let cto_entries = log.entries_by_agent("cto");
         assert_eq!(cto_entries.len(), 2);
@@ -313,9 +379,27 @@ mod tests {
     #[test]
     fn test_filter_by_action() {
         let mut log = AuditLog::new();
-        log.record("a", AuditAction::TaskCreated, "t1", serde_json::Value::Null, None);
-        log.record("a", AuditAction::TaskCompleted, "t1 done", serde_json::Value::Null, None);
-        log.record("b", AuditAction::TaskCreated, "t2", serde_json::Value::Null, None);
+        log.record(
+            "a",
+            AuditAction::TaskCreated,
+            "t1",
+            serde_json::Value::Null,
+            None,
+        );
+        log.record(
+            "a",
+            AuditAction::TaskCompleted,
+            "t1 done",
+            serde_json::Value::Null,
+            None,
+        );
+        log.record(
+            "b",
+            AuditAction::TaskCreated,
+            "t2",
+            serde_json::Value::Null,
+            None,
+        );
 
         let created = log.entries_by_action(&AuditAction::TaskCreated);
         assert_eq!(created.len(), 2);
@@ -324,7 +408,13 @@ mod tests {
     #[test]
     fn test_export_json() {
         let mut log = AuditLog::new();
-        log.record("test", AuditAction::System, "test entry", serde_json::json!({"key": "value"}), None);
+        log.record(
+            "test",
+            AuditAction::System,
+            "test entry",
+            serde_json::json!({"key": "value"}),
+            None,
+        );
 
         let json = log.export_json().unwrap();
         assert!(json.contains("test entry"));

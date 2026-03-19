@@ -223,6 +223,12 @@ pub struct DependencyInstaller {
     deps: Vec<Dependency>,
 }
 
+impl Default for DependencyInstaller {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DependencyInstaller {
     pub fn new() -> Self {
         Self {
@@ -243,9 +249,7 @@ impl DependencyInstaller {
             };
         }
 
-        let result = Command::new(parts[0])
-            .args(&parts[1..])
-            .output();
+        let result = Command::new(parts[0]).args(&parts[1..]).output();
 
         match result {
             Ok(output) if output.status.success() => {
@@ -333,10 +337,7 @@ impl DependencyInstaller {
         let checks = self.check_all();
         let total = checks.len();
         let installed = checks.iter().filter(|c| c.installed).count();
-        let missing_required = checks
-            .iter()
-            .filter(|c| !c.installed && c.required)
-            .count();
+        let missing_required = checks.iter().filter(|c| !c.installed && c.required).count();
         let missing_optional = checks
             .iter()
             .filter(|c| !c.installed && !c.required)
@@ -387,11 +388,7 @@ mod tests {
     #[test]
     fn test_dependency_check_git() {
         let installer = DependencyInstaller::new();
-        let git_dep = installer
-            .all()
-            .iter()
-            .find(|d| d.name == "Git")
-            .unwrap();
+        let git_dep = installer.all().iter().find(|d| d.name == "Git").unwrap();
         let check = installer.check_one(git_dep);
         // Git should be installed on any dev machine
         assert_eq!(check.name, "Git");
@@ -427,6 +424,8 @@ mod tests {
         let installer = DependencyInstaller::new();
         let system = installer.check_phase(InstallPhase::SystemPrerequisites);
         assert!(system.len() >= 6);
-        assert!(system.iter().all(|c| c.phase == InstallPhase::SystemPrerequisites));
+        assert!(system
+            .iter()
+            .all(|c| c.phase == InstallPhase::SystemPrerequisites));
     }
 }

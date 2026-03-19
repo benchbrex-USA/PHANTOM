@@ -72,8 +72,8 @@ impl LicenseKey {
             tier: tier.to_string(),
         };
 
-        let payload_bytes = serde_json::to_vec(&payload)
-            .map_err(|e| CryptoError::Serialization(e.to_string()))?;
+        let payload_bytes =
+            serde_json::to_vec(&payload).map_err(|e| CryptoError::Serialization(e.to_string()))?;
 
         let signature = signing_key.sign(&payload_bytes);
 
@@ -150,11 +150,7 @@ mod tests {
         let signing_key = LicenseSigningKey::generate();
         let verifying_key = signing_key.verifying_key();
 
-        let caps = vec![
-            "cto".into(),
-            "backend".into(),
-            "frontend".into(),
-        ];
+        let caps = vec!["cto".into(), "backend".into(), "frontend".into()];
 
         let license = LicenseKey::issue(&signing_key, "founder", caps, 365).unwrap();
         let encoded = license.encode();

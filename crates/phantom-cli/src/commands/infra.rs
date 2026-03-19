@@ -1,7 +1,7 @@
 //! `phantom infra` — Show infrastructure status across all providers.
 
-use phantom_infra::providers::ALL_PROVIDERS;
 use phantom_infra::dependencies::DependencyInstaller;
+use phantom_infra::providers::ALL_PROVIDERS;
 
 pub async fn run() -> anyhow::Result<()> {
     println!("\x1b[1mPhantom Infrastructure\x1b[0m\n");

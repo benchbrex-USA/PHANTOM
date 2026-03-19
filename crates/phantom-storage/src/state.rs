@@ -86,6 +86,12 @@ pub struct RemoteState {
     entries: HashMap<String, StateEntry>,
 }
 
+impl Default for RemoteState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RemoteState {
     pub fn new() -> Self {
         Self {
@@ -110,7 +116,11 @@ impl RemoteState {
     }
 
     /// Set a JSON-serializable value.
-    pub fn set_json<T: Serialize>(&mut self, key: impl Into<String>, value: &T) -> Result<(), StorageError> {
+    pub fn set_json<T: Serialize>(
+        &mut self,
+        key: impl Into<String>,
+        value: &T,
+    ) -> Result<(), StorageError> {
         let bytes = serde_json::to_vec(value).map_err(StorageError::from)?;
         self.set(key, bytes);
         Ok(())
@@ -190,8 +200,7 @@ impl RemoteState {
 
     /// Import state from JSON bytes (merges, newer versions win).
     pub fn import(&mut self, data: &[u8]) -> Result<usize, StorageError> {
-        let entries: Vec<StateEntry> =
-            serde_json::from_slice(data).map_err(StorageError::from)?;
+        let entries: Vec<StateEntry> = serde_json::from_slice(data).map_err(StorageError::from)?;
         let mut imported = 0;
 
         for entry in entries {

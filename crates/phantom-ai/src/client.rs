@@ -179,21 +179,19 @@ impl AnthropicClient {
         for attempt in 0..=self.max_retries {
             if attempt > 0 {
                 let delay = backoff_delay(attempt);
-                debug!(attempt, delay_ms = delay.as_millis(), "retrying after backoff");
+                debug!(
+                    attempt,
+                    delay_ms = delay.as_millis(),
+                    "retrying after backoff"
+                );
                 tokio::time::sleep(delay).await;
             }
 
             match self.send_request(request).await {
                 Ok(response) => {
                     // Track token usage
-                    let usage = self
-                        .token_usage
-                        .entry(agent_id.to_string())
-                        .or_default();
-                    usage.record(
-                        response.usage.input_tokens,
-                        response.usage.output_tokens,
-                    );
+                    let usage = self.token_usage.entry(agent_id.to_string()).or_default();
+                    usage.record(response.usage.input_tokens, response.usage.output_tokens);
 
                     debug!(
                         agent = agent_id,
@@ -258,10 +256,7 @@ impl AnthropicClient {
             });
         }
 
-        Err(AiError::RequestFailed(format!(
-            "HTTP {}: {}",
-            status, body
-        )))
+        Err(AiError::RequestFailed(format!("HTTP {}: {}", status, body)))
     }
 
     /// Simple single-turn completion (convenience method).
@@ -350,10 +345,7 @@ pub struct CostEstimate {
 
 /// Check if an error is retryable.
 fn is_retryable(error: &AiError) -> bool {
-    matches!(
-        error,
-        AiError::RateLimited { .. } | AiError::Http(_)
-    )
+    matches!(error, AiError::RateLimited { .. } | AiError::Http(_))
 }
 
 /// Exponential backoff with jitter.

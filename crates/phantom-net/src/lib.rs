@@ -11,20 +11,20 @@
 //! What syncs:       project state, task graph, infra bindings, audit log, health metrics
 //! What never syncs: master key, session keys, raw credentials
 
-pub mod mesh;
+pub mod config;
 pub mod discovery;
+pub mod errors;
+pub mod mesh;
+pub mod peer;
+pub mod protocol;
 pub mod sync;
 pub mod transport;
-pub mod protocol;
-pub mod peer;
-pub mod config;
-pub mod errors;
 
-pub use errors::NetError;
-pub use mesh::{MeshNetwork, MeshEvent, MeshStatus};
-pub use peer::{PeerInfo, PeerState, PeerTable};
-pub use sync::{CrdtSync, SyncStatus};
 pub use config::MeshConfig;
-pub use discovery::{DiscoveryTracker, DiscoveryStats};
+pub use discovery::{DiscoveryStats, DiscoveryTracker};
+pub use errors::NetError;
+pub use mesh::{MeshEvent, MeshNetwork, MeshStatus};
+pub use peer::{PeerInfo, PeerState, PeerTable};
+pub use protocol::{MessageKind, WireMessage, PROTOCOL_VERSION};
+pub use sync::{CrdtSync, SyncStatus};
 pub use transport::QuicTransport;
-pub use protocol::{WireMessage, MessageKind, PROTOCOL_VERSION};

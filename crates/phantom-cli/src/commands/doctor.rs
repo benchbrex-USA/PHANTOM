@@ -21,10 +21,10 @@ pub async fn run() -> anyhow::Result<()> {
         }
 
         let (icon, color) = match result.status {
-            DoctorStatus::Ok => ("\u{2713}", "\x1b[32m"),       // green check
-            DoctorStatus::Missing => ("\u{2717}", "\x1b[31m"),  // red X
-            DoctorStatus::Warning => ("!", "\x1b[33m"),         // yellow !
-            DoctorStatus::Error => ("\u{2717}", "\x1b[31m"),    // red X
+            DoctorStatus::Ok => ("\u{2713}", "\x1b[32m"), // green check
+            DoctorStatus::Missing => ("\u{2717}", "\x1b[31m"), // red X
+            DoctorStatus::Warning => ("!", "\x1b[33m"),   // yellow !
+            DoctorStatus::Error => ("\u{2717}", "\x1b[31m"), // red X
         };
 
         let version_or_msg = result
@@ -33,7 +33,10 @@ pub async fn run() -> anyhow::Result<()> {
             .or(result.message.as_deref())
             .unwrap_or("");
 
-        println!("  {color}{icon}\x1b[0m {:<30} {}", result.name, version_or_msg);
+        println!(
+            "  {color}{icon}\x1b[0m {:<30} {}",
+            result.name, version_or_msg
+        );
     }
 
     println!();

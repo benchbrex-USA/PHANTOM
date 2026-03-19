@@ -3,8 +3,8 @@
 //! Tests the end-to-end flow: master key → sub-keys → encryption → license.
 
 use phantom_crypto::{
+    aes256gcm::{decrypt, encrypt, EncryptionKey},
     argon2id,
-    aes256gcm::{encrypt, decrypt, EncryptionKey},
     ed25519::LicenseSigningKey,
     license::LicenseKey,
     master_key::MasterKeySession,
@@ -132,14 +132,27 @@ fn test_agent_scoped_keys_are_unique() {
     let salt = [0x44u8; 32];
     let session = MasterKeySession::new(passphrase, salt).unwrap();
 
-    let agents = ["cto", "architect", "backend", "frontend", "devops", "qa", "security", "monitor"];
+    let agents = [
+        "cto",
+        "architect",
+        "backend",
+        "frontend",
+        "devops",
+        "qa",
+        "security",
+        "monitor",
+    ];
     let mut keys: Vec<[u8; 32]> = Vec::new();
 
     for agent in &agents {
         let key = session.derive_agent_key(agent, "default-task").unwrap();
         let key_bytes = *key.as_bytes();
         // Each agent key should be unique
-        assert!(!keys.contains(&key_bytes), "duplicate key for agent: {}", agent);
+        assert!(
+            !keys.contains(&key_bytes),
+            "duplicate key for agent: {}",
+            agent
+        );
         keys.push(key_bytes);
     }
 

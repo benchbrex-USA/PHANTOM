@@ -1,10 +1,7 @@
 //! Ed25519 signing and verification for license keys.
 //! License forgery is infeasible without the private signing key.
 
-use ed25519_dalek::{
-    Signature, Signer, SigningKey, Verifier, VerifyingKey,
-    SECRET_KEY_LENGTH,
-};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey, SECRET_KEY_LENGTH};
 use rand::rngs::OsRng;
 use zeroize::Zeroize;
 
@@ -105,7 +102,9 @@ mod tests {
         let verifying_key = signing_key.verifying_key();
 
         let signature = signing_key.sign(b"real message");
-        assert!(verifying_key.verify(b"tampered message", &signature).is_err());
+        assert!(verifying_key
+            .verify(b"tampered message", &signature)
+            .is_err());
     }
 
     #[test]

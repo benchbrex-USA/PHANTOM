@@ -14,16 +14,19 @@ fn test_task_graph_full_lifecycle() {
     let mut graph = TaskGraph::new();
 
     // Build a realistic task graph (Task::new takes name, description, agent_role)
-    let setup_id = graph.add_task(Task::new("setup", "Setup infrastructure", "devops")).unwrap();
-    let schema_id = graph.add_task(Task::new("schema", "Design database schema", "architect")).unwrap();
+    let setup_id = graph
+        .add_task(Task::new("setup", "Setup infrastructure", "devops"))
+        .unwrap();
+    let schema_id = graph
+        .add_task(Task::new("schema", "Design database schema", "architect"))
+        .unwrap();
 
     let api_task = Task::new("api", "Build API endpoints", "backend")
         .depends_on(&setup_id)
         .depends_on(&schema_id);
     let api_id = graph.add_task(api_task).unwrap();
 
-    let fe_task = Task::new("frontend", "Build frontend", "frontend")
-        .depends_on(&schema_id);
+    let fe_task = Task::new("frontend", "Build frontend", "frontend").depends_on(&schema_id);
     let fe_id = graph.add_task(fe_task).unwrap();
 
     let test_task = Task::new("test", "Run tests", "qa")
@@ -60,9 +63,21 @@ fn test_task_graph_cycle_detection() {
     let c_id = graph.add_task(Task::new("c", "Task C", "backend")).unwrap();
 
     // Create circular dependencies
-    graph.get_task_mut(&a_id).unwrap().dependencies.push(c_id.clone());
-    graph.get_task_mut(&b_id).unwrap().dependencies.push(a_id.clone());
-    graph.get_task_mut(&c_id).unwrap().dependencies.push(b_id.clone());
+    graph
+        .get_task_mut(&a_id)
+        .unwrap()
+        .dependencies
+        .push(c_id.clone());
+    graph
+        .get_task_mut(&b_id)
+        .unwrap()
+        .dependencies
+        .push(a_id.clone());
+    graph
+        .get_task_mut(&c_id)
+        .unwrap()
+        .dependencies
+        .push(b_id.clone());
 
     // Should detect the cycle
     assert!(graph.validate().is_err());
@@ -127,11 +142,41 @@ fn test_self_healer_escalation() {
 fn test_audit_log_integrity_chain() {
     let mut log = AuditLog::new();
 
-    log.record("cto", AuditAction::AgentSpawned, "CTO started", serde_json::json!({}), None);
-    log.record("architect", AuditAction::AgentSpawned, "Architect started", serde_json::json!({}), None);
-    log.record("backend", AuditAction::TaskStarted, "Building API", serde_json::json!({"task": "api"}), Some("API_Expert/REST".into()));
-    log.record("qa", AuditAction::TestsExecuted, "All tests pass", serde_json::json!({"passed": 42, "failed": 0}), None);
-    log.record("security", AuditAction::SecurityAudit, "No vulnerabilities", serde_json::json!({"score": "A+"}), None);
+    log.record(
+        "cto",
+        AuditAction::AgentSpawned,
+        "CTO started",
+        serde_json::json!({}),
+        None,
+    );
+    log.record(
+        "architect",
+        AuditAction::AgentSpawned,
+        "Architect started",
+        serde_json::json!({}),
+        None,
+    );
+    log.record(
+        "backend",
+        AuditAction::TaskStarted,
+        "Building API",
+        serde_json::json!({"task": "api"}),
+        Some("API_Expert/REST".into()),
+    );
+    log.record(
+        "qa",
+        AuditAction::TestsExecuted,
+        "All tests pass",
+        serde_json::json!({"passed": 42, "failed": 0}),
+        None,
+    );
+    log.record(
+        "security",
+        AuditAction::SecurityAudit,
+        "No vulnerabilities",
+        serde_json::json!({"score": "A+"}),
+        None,
+    );
 
     // Chain should be intact
     assert!(log.verify_integrity().is_ok());
@@ -169,9 +214,24 @@ fn test_build_pipeline_phase_progression() {
 fn test_job_queue_priority_ordering() {
     let mut queue = JobQueue::new();
 
-    queue.enqueue(Job::new("low-task", "backend", 10, serde_json::json!({"desc": "low"})));
-    queue.enqueue(Job::new("high-task", "backend", 100, serde_json::json!({"desc": "high"})));
-    queue.enqueue(Job::new("medium-task", "backend", 50, serde_json::json!({"desc": "medium"})));
+    queue.enqueue(Job::new(
+        "low-task",
+        "backend",
+        10,
+        serde_json::json!({"desc": "low"}),
+    ));
+    queue.enqueue(Job::new(
+        "high-task",
+        "backend",
+        100,
+        serde_json::json!({"desc": "high"}),
+    ));
+    queue.enqueue(Job::new(
+        "medium-task",
+        "backend",
+        50,
+        serde_json::json!({"desc": "medium"}),
+    ));
 
     // Should come out in priority order (higher number = higher priority in BinaryHeap)
     let first = queue.dequeue().unwrap();

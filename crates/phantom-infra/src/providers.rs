@@ -129,20 +129,20 @@ impl Provider {
     /// Priority rank (lower = try first). Based on Architecture Framework §9.
     pub fn priority(&self) -> u8 {
         match self {
-            Self::OracleCloud => 1,   // Primary compute
-            Self::GoogleCloud => 2,   // Secondary compute
-            Self::AwsFreeTier => 3,   // Backup compute
-            Self::Cloudflare => 4,    // Edge + DNS
-            Self::CloudflareR2 => 5,  // Blob storage
-            Self::GitHub => 6,        // Code + CI
-            Self::Supabase => 7,      // Primary DB
-            Self::Neon => 8,          // Backup DB
-            Self::FlyIo => 9,         // P2P mesh nodes
-            Self::Upstash => 10,      // Cache
-            Self::Railway => 11,      // Ephemeral
-            Self::Vercel => 12,       // Frontend
-            Self::Netlify => 13,      // Frontend backup
-            Self::Render => 14,       // Static hosting
+            Self::OracleCloud => 1,  // Primary compute
+            Self::GoogleCloud => 2,  // Secondary compute
+            Self::AwsFreeTier => 3,  // Backup compute
+            Self::Cloudflare => 4,   // Edge + DNS
+            Self::CloudflareR2 => 5, // Blob storage
+            Self::GitHub => 6,       // Code + CI
+            Self::Supabase => 7,     // Primary DB
+            Self::Neon => 8,         // Backup DB
+            Self::FlyIo => 9,        // P2P mesh nodes
+            Self::Upstash => 10,     // Cache
+            Self::Railway => 11,     // Ephemeral
+            Self::Vercel => 12,      // Frontend
+            Self::Netlify => 13,     // Frontend backup
+            Self::Render => 14,      // Static hosting
         }
     }
 

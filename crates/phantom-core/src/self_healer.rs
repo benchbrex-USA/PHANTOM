@@ -108,6 +108,12 @@ pub struct SelfHealer {
     config: HealingConfig,
 }
 
+impl Default for SelfHealer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SelfHealer {
     pub fn new() -> Self {
         Self {
@@ -162,7 +168,12 @@ impl SelfHealer {
             delay
         );
 
-        debug!(attempt, delay_ms = delay.as_millis(), success, "retry healing");
+        debug!(
+            attempt,
+            delay_ms = delay.as_millis(),
+            success,
+            "retry healing"
+        );
 
         HealingResult {
             layer: HealingLayer::Retry,
@@ -264,7 +275,9 @@ fn is_retryable_error(error: &str) -> bool {
     ];
 
     let lower = error.to_lowercase();
-    retryable_patterns.iter().any(|p| lower.contains(&p.to_lowercase()))
+    retryable_patterns
+        .iter()
+        .any(|p| lower.contains(&p.to_lowercase()))
 }
 
 /// Check if an alternative approach might work.
@@ -279,7 +292,9 @@ fn is_alternative_possible(error: &str) -> bool {
     ];
 
     let lower = error.to_lowercase();
-    alternative_patterns.iter().any(|p| lower.contains(&p.to_lowercase()))
+    alternative_patterns
+        .iter()
+        .any(|p| lower.contains(&p.to_lowercase()))
 }
 
 /// Check if the task can be decomposed.
@@ -293,7 +308,9 @@ fn is_decomposable_error(error: &str) -> bool {
     ];
 
     let lower = error.to_lowercase();
-    decompose_patterns.iter().any(|p| lower.contains(&p.to_lowercase()))
+    decompose_patterns
+        .iter()
+        .any(|p| lower.contains(&p.to_lowercase()))
 }
 
 #[cfg(test)]
@@ -303,9 +320,15 @@ mod tests {
     #[test]
     fn test_healing_layer_escalation() {
         assert_eq!(HealingLayer::Retry.next(), Some(HealingLayer::Alternative));
-        assert_eq!(HealingLayer::Alternative.next(), Some(HealingLayer::Decompose));
+        assert_eq!(
+            HealingLayer::Alternative.next(),
+            Some(HealingLayer::Decompose)
+        );
         assert_eq!(HealingLayer::Decompose.next(), Some(HealingLayer::Escalate));
-        assert_eq!(HealingLayer::Escalate.next(), Some(HealingLayer::PauseAndAlert));
+        assert_eq!(
+            HealingLayer::Escalate.next(),
+            Some(HealingLayer::PauseAndAlert)
+        );
         assert_eq!(HealingLayer::PauseAndAlert.next(), None);
     }
 
@@ -339,7 +362,9 @@ mod tests {
 
     #[test]
     fn test_alternative_errors() {
-        assert!(is_alternative_possible("provider unavailable: Oracle Cloud"));
+        assert!(is_alternative_possible(
+            "provider unavailable: Oracle Cloud"
+        ));
         assert!(is_alternative_possible("command not found: npm"));
         assert!(!is_alternative_possible("timeout"));
     }

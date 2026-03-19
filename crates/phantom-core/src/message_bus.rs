@@ -33,7 +33,12 @@ pub struct Message {
 
 impl Message {
     /// Create a new message.
-    pub fn new(from: impl Into<String>, to: impl Into<String>, kind: MessageKind, payload: serde_json::Value) -> Self {
+    pub fn new(
+        from: impl Into<String>,
+        to: impl Into<String>,
+        kind: MessageKind,
+        payload: serde_json::Value,
+    ) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             from: from.into(),
@@ -45,7 +50,11 @@ impl Message {
     }
 
     /// Create a broadcast message (sent to all agents).
-    pub fn broadcast(from: impl Into<String>, kind: MessageKind, payload: serde_json::Value) -> Self {
+    pub fn broadcast(
+        from: impl Into<String>,
+        kind: MessageKind,
+        payload: serde_json::Value,
+    ) -> Self {
         Self::new(from, "broadcast", kind, payload)
     }
 }
@@ -214,7 +223,12 @@ mod tests {
         let bus = MessageBus::new(16);
         let mut mailbox = bus.register_agent("backend").await.unwrap();
 
-        let msg = Message::new("cto", "backend", MessageKind::TaskAssignment, serde_json::json!({"task": "build API"}));
+        let msg = Message::new(
+            "cto",
+            "backend",
+            MessageKind::TaskAssignment,
+            serde_json::json!({"task": "build API"}),
+        );
         bus.send(msg).await.unwrap();
 
         let received = mailbox.recv().await.unwrap();
@@ -225,7 +239,12 @@ mod tests {
     #[tokio::test]
     async fn test_send_to_unknown_agent_fails() {
         let bus = MessageBus::new(16);
-        let msg = Message::new("cto", "nonexistent", MessageKind::TaskAssignment, serde_json::Value::Null);
+        let msg = Message::new(
+            "cto",
+            "nonexistent",
+            MessageKind::TaskAssignment,
+            serde_json::Value::Null,
+        );
         assert!(bus.send(msg).await.is_err());
     }
 
@@ -235,7 +254,11 @@ mod tests {
         let mut mb1 = bus.register_agent("agent1").await.unwrap();
         let mut mb2 = bus.register_agent("agent2").await.unwrap();
 
-        let msg = Message::broadcast("system", MessageKind::Halt, serde_json::json!({"reason": "test"}));
+        let msg = Message::broadcast(
+            "system",
+            MessageKind::Halt,
+            serde_json::json!({"reason": "test"}),
+        );
         bus.broadcast(msg).await.unwrap();
 
         let r1 = mb1.recv_broadcast().await.unwrap();
@@ -267,7 +290,12 @@ mod tests {
 
     #[test]
     fn test_message_creation() {
-        let msg = Message::new("cto", "backend", MessageKind::TaskAssignment, serde_json::json!({"task_id": "123"}));
+        let msg = Message::new(
+            "cto",
+            "backend",
+            MessageKind::TaskAssignment,
+            serde_json::json!({"task_id": "123"}),
+        );
         assert_eq!(msg.from, "cto");
         assert_eq!(msg.to, "backend");
         assert!(!msg.id.is_empty());

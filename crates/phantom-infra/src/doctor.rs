@@ -23,7 +23,11 @@ pub struct DoctorResult {
 }
 
 impl DoctorResult {
-    pub fn ok(name: impl Into<String>, category: impl Into<String>, version: Option<String>) -> Self {
+    pub fn ok(
+        name: impl Into<String>,
+        category: impl Into<String>,
+        version: Option<String>,
+    ) -> Self {
         Self {
             name: name.into(),
             category: category.into(),
@@ -33,7 +37,11 @@ impl DoctorResult {
         }
     }
 
-    pub fn missing(name: impl Into<String>, category: impl Into<String>, msg: impl Into<String>) -> Self {
+    pub fn missing(
+        name: impl Into<String>,
+        category: impl Into<String>,
+        msg: impl Into<String>,
+    ) -> Self {
         Self {
             name: name.into(),
             category: category.into(),
@@ -43,7 +51,11 @@ impl DoctorResult {
         }
     }
 
-    pub fn warning(name: impl Into<String>, category: impl Into<String>, msg: impl Into<String>) -> Self {
+    pub fn warning(
+        name: impl Into<String>,
+        category: impl Into<String>,
+        msg: impl Into<String>,
+    ) -> Self {
         Self {
             name: name.into(),
             category: category.into(),
@@ -89,10 +101,22 @@ pub struct DoctorReport {
 impl DoctorReport {
     pub fn from_results(results: Vec<DoctorResult>) -> Self {
         let total = results.len();
-        let ok_count = results.iter().filter(|r| r.status == DoctorStatus::Ok).count();
-        let missing_count = results.iter().filter(|r| r.status == DoctorStatus::Missing).count();
-        let warning_count = results.iter().filter(|r| r.status == DoctorStatus::Warning).count();
-        let error_count = results.iter().filter(|r| r.status == DoctorStatus::Error).count();
+        let ok_count = results
+            .iter()
+            .filter(|r| r.status == DoctorStatus::Ok)
+            .count();
+        let missing_count = results
+            .iter()
+            .filter(|r| r.status == DoctorStatus::Missing)
+            .count();
+        let warning_count = results
+            .iter()
+            .filter(|r| r.status == DoctorStatus::Warning)
+            .count();
+        let error_count = results
+            .iter()
+            .filter(|r| r.status == DoctorStatus::Error)
+            .count();
         let healthy = error_count == 0 && missing_count == 0;
 
         Self {
@@ -110,6 +134,12 @@ impl DoctorReport {
 /// Run all dependency health checks.
 pub struct Doctor {
     installer: DependencyInstaller,
+}
+
+impl Default for Doctor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Doctor {
@@ -144,7 +174,7 @@ impl Doctor {
         self.installer
             .check_all()
             .into_iter()
-            .map(|check| dep_check_to_result(check))
+            .map(dep_check_to_result)
             .collect()
     }
 
@@ -169,7 +199,11 @@ impl Doctor {
                     Some(DoctorResult::warning(
                         format!("{} CLI", provider.display_name()),
                         "Provider CLI",
-                        format!("`{}` not found — {} features will be unavailable", tool, provider.display_name()),
+                        format!(
+                            "`{}` not found — {} features will be unavailable",
+                            tool,
+                            provider.display_name()
+                        ),
                     ))
                 }
             })
@@ -184,11 +218,7 @@ fn dep_check_to_result(check: DependencyCheck) -> DoctorResult {
     } else if check.required {
         DoctorResult::missing(check.name, category, "required dependency not installed")
     } else {
-        DoctorResult::warning(
-            check.name,
-            category,
-            "optional dependency not installed",
-        )
+        DoctorResult::warning(check.name, category, "optional dependency not installed")
     }
 }
 

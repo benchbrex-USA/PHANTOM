@@ -177,9 +177,7 @@ async fn main() -> anyhow::Result<()> {
             component,
             test_only,
             deploy_only,
-        } => {
-            commands::build::run(framework, resume, component, test_only, deploy_only).await
-        }
+        } => commands::build::run(framework, resume, component, test_only, deploy_only).await,
         Commands::Status { live } => commands::status::run(live).await,
         Commands::Doctor => commands::doctor::run().await,
         Commands::Agents => commands::agents::run().await,

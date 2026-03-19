@@ -16,7 +16,9 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::errors::InfraError;
-use crate::providers::{Provider, ProviderState, ProviderStatus, ResourceType, providers_for_resource};
+use crate::providers::{
+    providers_for_resource, Provider, ProviderState, ProviderStatus, ResourceType,
+};
 
 /// A provisioned resource — something Phantom is using.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,6 +96,12 @@ pub struct Provisioner {
     next_id: u64,
 }
 
+impl Default for Provisioner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Provisioner {
     pub fn new() -> Self {
         Self {
@@ -115,14 +123,12 @@ impl Provisioner {
 
     /// Find the best available provider for a resource type.
     pub fn best_provider_for(&self, resource_type: ResourceType) -> Option<Provider> {
-        providers_for_resource(resource_type)
-            .into_iter()
-            .find(|p| {
-                self.provider_status
-                    .get(p)
-                    .map(|s| s.state == ProviderState::Available)
-                    .unwrap_or(false)
-            })
+        providers_for_resource(resource_type).into_iter().find(|p| {
+            self.provider_status
+                .get(p)
+                .map(|s| s.state == ProviderState::Available)
+                .unwrap_or(false)
+        })
     }
 
     /// Plan provisioning: determine which provider to use for a request.
@@ -140,10 +146,7 @@ impl Provisioner {
         self.best_provider_for(request.resource_type)
             .ok_or_else(|| InfraError::ProviderUnavailable {
                 provider: "any".into(),
-                reason: format!(
-                    "no available provider for {}",
-                    request.resource_type
-                ),
+                reason: format!("no available provider for {}", request.resource_type),
             })
     }
 
@@ -152,7 +155,11 @@ impl Provisioner {
         if resource.id.is_empty() {
             resource.id = format!(
                 "{}-{}-{}",
-                resource.provider.display_name().to_lowercase().replace(' ', "-"),
+                resource
+                    .provider
+                    .display_name()
+                    .to_lowercase()
+                    .replace(' ', "-"),
                 resource.resource_type,
                 self.next_id
             );
@@ -180,11 +187,7 @@ impl Provisioner {
     }
 
     /// Update resource state.
-    pub fn set_resource_state(
-        &mut self,
-        id: &str,
-        state: ResourceState,
-    ) -> Result<(), InfraError> {
+    pub fn set_resource_state(&mut self, id: &str, state: ResourceState) -> Result<(), InfraError> {
         let resource = self
             .resources
             .get_mut(id)
@@ -244,7 +247,8 @@ impl Provisioner {
             .values()
             .filter(|r| r.state == ResourceState::Active)
             .fold(HashMap::new(), |mut acc, r| {
-                *acc.entry(r.provider.display_name().to_string()).or_insert(0) += 1;
+                *acc.entry(r.provider.display_name().to_string())
+                    .or_insert(0) += 1;
                 acc
             });
 
@@ -306,9 +310,14 @@ mod tests {
     #[test]
     fn test_provisioner_state_change() {
         let mut prov = Provisioner::new();
-        prov.register_resource(make_resource("vm-1", Provider::OracleCloud, ResourceType::Compute));
+        prov.register_resource(make_resource(
+            "vm-1",
+            Provider::OracleCloud,
+            ResourceType::Compute,
+        ));
 
-        prov.set_resource_state("vm-1", ResourceState::Migrating).unwrap();
+        prov.set_resource_state("vm-1", ResourceState::Migrating)
+            .unwrap();
         assert_eq!(
             prov.get_resource("vm-1").unwrap().state,
             ResourceState::Migrating
@@ -318,7 +327,11 @@ mod tests {
     #[test]
     fn test_provisioner_decommission() {
         let mut prov = Provisioner::new();
-        prov.register_resource(make_resource("vm-1", Provider::OracleCloud, ResourceType::Compute));
+        prov.register_resource(make_resource(
+            "vm-1",
+            Provider::OracleCloud,
+            ResourceType::Compute,
+        ));
 
         assert_eq!(prov.active_count(), 1);
         prov.decommission("vm-1").unwrap();
@@ -374,9 +387,21 @@ mod tests {
     #[test]
     fn test_provisioner_resources_by_type() {
         let mut prov = Provisioner::new();
-        prov.register_resource(make_resource("vm-1", Provider::OracleCloud, ResourceType::Compute));
-        prov.register_resource(make_resource("db-1", Provider::Supabase, ResourceType::Database));
-        prov.register_resource(make_resource("vm-2", Provider::FlyIo, ResourceType::Compute));
+        prov.register_resource(make_resource(
+            "vm-1",
+            Provider::OracleCloud,
+            ResourceType::Compute,
+        ));
+        prov.register_resource(make_resource(
+            "db-1",
+            Provider::Supabase,
+            ResourceType::Database,
+        ));
+        prov.register_resource(make_resource(
+            "vm-2",
+            Provider::FlyIo,
+            ResourceType::Compute,
+        ));
 
         let compute = prov.resources_by_type(ResourceType::Compute);
         assert_eq!(compute.len(), 2);
@@ -388,8 +413,16 @@ mod tests {
     #[test]
     fn test_provisioner_summary() {
         let mut prov = Provisioner::new();
-        prov.register_resource(make_resource("vm-1", Provider::OracleCloud, ResourceType::Compute));
-        prov.register_resource(make_resource("db-1", Provider::Supabase, ResourceType::Database));
+        prov.register_resource(make_resource(
+            "vm-1",
+            Provider::OracleCloud,
+            ResourceType::Compute,
+        ));
+        prov.register_resource(make_resource(
+            "db-1",
+            Provider::Supabase,
+            ResourceType::Database,
+        ));
 
         let summary = prov.summary();
         assert_eq!(summary.total_resources, 2);

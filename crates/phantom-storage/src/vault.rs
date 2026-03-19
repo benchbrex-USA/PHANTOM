@@ -112,11 +112,7 @@ impl Vault {
     }
 
     /// Retrieve and decrypt a credential.
-    pub fn retrieve(
-        &self,
-        service: &str,
-        key_name: &str,
-    ) -> Result<Vec<u8>, StorageError> {
+    pub fn retrieve(&self, service: &str, key_name: &str) -> Result<Vec<u8>, StorageError> {
         let key = format!("{}/{}", service, key_name);
         let entry = self
             .entries
@@ -139,11 +135,7 @@ impl Vault {
     }
 
     /// Retrieve and decrypt as a UTF-8 string.
-    pub fn retrieve_string(
-        &self,
-        service: &str,
-        key_name: &str,
-    ) -> Result<String, StorageError> {
+    pub fn retrieve_string(&self, service: &str, key_name: &str) -> Result<String, StorageError> {
         let bytes = self.retrieve(service, key_name)?;
         String::from_utf8(bytes).map_err(|e| StorageError::Decryption(e.to_string()))
     }
@@ -199,11 +191,7 @@ impl Vault {
 
     /// List all services in the vault.
     pub fn services(&self) -> Vec<String> {
-        let mut services: Vec<String> = self
-            .entries
-            .values()
-            .map(|e| e.service.clone())
-            .collect();
+        let mut services: Vec<String> = self.entries.values().map(|e| e.service.clone()).collect();
         services.sort();
         services.dedup();
         services
@@ -226,8 +214,7 @@ impl Vault {
 
     /// Import vault entries from serialized bytes.
     pub fn import(&mut self, data: &[u8]) -> Result<usize, StorageError> {
-        let entries: Vec<VaultEntry> =
-            serde_json::from_slice(data).map_err(StorageError::from)?;
+        let entries: Vec<VaultEntry> = serde_json::from_slice(data).map_err(StorageError::from)?;
         let count = entries.len();
         for entry in entries {
             let key = entry.key();
@@ -272,9 +259,7 @@ mod tests {
     fn test_store_and_retrieve_bytes() {
         let mut vault = Vault::new(test_key());
         let binary_data = vec![0u8, 1, 2, 255, 254, 253];
-        vault
-            .store("test", "binary", &binary_data, None)
-            .unwrap();
+        vault.store("test", "binary", &binary_data, None).unwrap();
 
         let retrieved = vault.retrieve("test", "binary").unwrap();
         assert_eq!(retrieved, binary_data);
@@ -290,9 +275,7 @@ mod tests {
     #[test]
     fn test_rotate_credential() {
         let mut vault = Vault::new(test_key());
-        vault
-            .store("aws", "access_key", b"old_key", None)
-            .unwrap();
+        vault.store("aws", "access_key", b"old_key", None).unwrap();
 
         vault.rotate("aws", "access_key", b"new_key").unwrap();
 
@@ -320,9 +303,7 @@ mod tests {
         vault
             .store("cloudflare", "account_id", b"acc1", None)
             .unwrap();
-        vault
-            .store("github", "token", b"gh_tok", None)
-            .unwrap();
+        vault.store("github", "token", b"gh_tok", None).unwrap();
 
         let cf_entries = vault.list_service("cloudflare");
         assert_eq!(cf_entries.len(), 2);

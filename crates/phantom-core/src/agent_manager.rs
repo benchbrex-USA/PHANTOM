@@ -137,23 +137,23 @@ impl AgentHandle {
 /// Default token budgets per agent role.
 fn default_token_budget(role: AgentRole) -> u64 {
     match role {
-        AgentRole::Cto => 500_000,      // Orchestrator needs more
+        AgentRole::Cto => 500_000, // Orchestrator needs more
         AgentRole::Architect => 300_000,
-        AgentRole::Backend => 400_000,   // Code generation is token-heavy
+        AgentRole::Backend => 400_000, // Code generation is token-heavy
         AgentRole::Frontend => 400_000,
         AgentRole::DevOps => 200_000,
         AgentRole::Qa => 300_000,
         AgentRole::Security => 200_000,
-        AgentRole::Monitor => 100_000,   // Haiku, minimal usage
+        AgentRole::Monitor => 100_000, // Haiku, minimal usage
     }
 }
 
 /// Default timeout per agent role (seconds).
 fn default_timeout(role: AgentRole) -> u64 {
     match role {
-        AgentRole::Cto => 3600,      // 1 hour
-        AgentRole::Monitor => 0,     // No timeout (daemon)
-        _ => 1800,                   // 30 minutes
+        AgentRole::Cto => 3600,  // 1 hour
+        AgentRole::Monitor => 0, // No timeout (daemon)
+        _ => 1800,               // 30 minutes
     }
 }
 
@@ -161,6 +161,12 @@ fn default_timeout(role: AgentRole) -> u64 {
 pub struct AgentManager {
     agents: HashMap<String, AgentHandle>,
     halted: bool,
+}
+
+impl Default for AgentManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AgentManager {
@@ -177,12 +183,12 @@ impl AgentManager {
             return Err(CoreError::EmergencyHalt);
         }
 
-        let instance = self
-            .agents
-            .values()
-            .filter(|a| a.role == role)
-            .count();
-        let id = format!("{}-{}", role.display_name().to_lowercase().replace(' ', "-"), instance);
+        let instance = self.agents.values().filter(|a| a.role == role).count();
+        let id = format!(
+            "{}-{}",
+            role.display_name().to_lowercase().replace(' ', "-"),
+            instance
+        );
 
         info!(agent_id = %id, role = ?role, model = role.model(), "spawning agent");
 
@@ -345,7 +351,10 @@ mod tests {
 
         mgr.get_mut(&id).unwrap().assign_task("task-1");
         assert_eq!(mgr.get(&id).unwrap().state, AgentState::Working);
-        assert_eq!(mgr.get(&id).unwrap().current_task.as_deref(), Some("task-1"));
+        assert_eq!(
+            mgr.get(&id).unwrap().current_task.as_deref(),
+            Some("task-1")
+        );
 
         mgr.get_mut(&id).unwrap().complete_task();
         assert_eq!(mgr.get(&id).unwrap().state, AgentState::Idle);

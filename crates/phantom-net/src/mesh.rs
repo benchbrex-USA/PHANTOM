@@ -17,9 +17,7 @@ use crate::config::MeshConfig;
 use crate::discovery::DiscoveryTracker;
 use crate::errors::NetError;
 use crate::peer::{PeerInfo, PeerState, PeerTable};
-use crate::protocol::{
-    HeartbeatPayload, JoinPayload, MessageKind, WireMessage, PROTOCOL_VERSION,
-};
+use crate::protocol::{HeartbeatPayload, JoinPayload, MessageKind, WireMessage, PROTOCOL_VERSION};
 use crate::sync::CrdtSync;
 use crate::transport::QuicTransport;
 
@@ -221,11 +219,7 @@ impl MeshNetwork {
     }
 
     /// Receive and process a sync message from a peer.
-    pub async fn receive_sync_from(
-        &self,
-        peer_id: &str,
-        message: &[u8],
-    ) -> Result<(), NetError> {
+    pub async fn receive_sync_from(&self, peer_id: &str, message: &[u8]) -> Result<(), NetError> {
         {
             let mut crdt = self.crdt.lock().await;
             crdt.receive_sync_message(peer_id, message)?;
@@ -343,7 +337,11 @@ impl MeshNetwork {
             capabilities: vec!["sync".into(), "relay".into()],
         };
         let payload_bytes = serde_json::to_vec(&payload).unwrap_or_default();
-        WireMessage::new(MessageKind::JoinRequest, self.local_peer_id(), payload_bytes)
+        WireMessage::new(
+            MessageKind::JoinRequest,
+            self.local_peer_id(),
+            payload_bytes,
+        )
     }
 
     // ── Diagnostics ────────────────────────────────────────────────────
@@ -460,10 +458,7 @@ mod tests {
     async fn test_crdt_operations() {
         let mesh = test_mesh();
         mesh.crdt_put("project", "phantom").await.unwrap();
-        assert_eq!(
-            mesh.crdt_get("project").await,
-            Some("phantom".to_string())
-        );
+        assert_eq!(mesh.crdt_get("project").await, Some("phantom".to_string()));
     }
 
     #[tokio::test]

@@ -22,6 +22,12 @@ pub struct DiscoveryTracker {
     bootstrap_peers: HashSet<String>,
 }
 
+impl Default for DiscoveryTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DiscoveryTracker {
     pub fn new() -> Self {
         Self {
