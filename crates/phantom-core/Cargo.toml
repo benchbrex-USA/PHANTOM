@@ -1,0 +1,28 @@
+[package]
+name = "phantom-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Phantom core: task graph, agent manager, message bus, self-healing engine"
+
+[dependencies]
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }
+hex = "0.4"
+phantom-crypto = { workspace = true }
+phantom-brain = { workspace = true }
+phantom-ai = { workspace = true }
+phantom-storage = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

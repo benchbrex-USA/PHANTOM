@@ -1,0 +1,24 @@
+[package]
+name = "phantom-net"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Phantom P2P mesh: libp2p QUIC transport, Noise security, Kademlia DHT, CRDT sync"
+
+[dependencies]
+libp2p = { workspace = true }
+automerge = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+phantom-crypto = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

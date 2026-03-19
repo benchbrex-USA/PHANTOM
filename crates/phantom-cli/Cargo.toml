@@ -1,0 +1,29 @@
+[package]
+name = "phantom"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Phantom — The Autonomous AI Engineering Team"
+
+[[bin]]
+name = "phantom"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+phantom-core = { workspace = true }
+phantom-crypto = { workspace = true }
+phantom-net = { workspace = true }
+phantom-infra = { workspace = true }
+phantom-ai = { workspace = true }
+phantom-storage = { workspace = true }
+phantom-brain = { workspace = true }

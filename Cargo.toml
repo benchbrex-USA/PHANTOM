@@ -1,0 +1,88 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/phantom-cli",
+    "crates/phantom-core",
+    "crates/phantom-crypto",
+    "crates/phantom-net",
+    "crates/phantom-infra",
+    "crates/phantom-ai",
+    "crates/phantom-storage",
+    "crates/phantom-brain",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Parth Patel <parth@benchbrex.com>"]
+license = "Proprietary"
+repository = "https://github.com/benchbrex/phantom"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# CLI & TUI
+clap = { version = "4", features = ["derive", "env"] }
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Cryptography
+ring = "0.17"
+ed25519-dalek = { version = "2", features = ["serde", "rand_core"] }
+argon2 = "0.5"
+aes-gcm = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+hmac = "0.12"
+rand = "0.8"
+base62 = "2"
+base64 = "0.22"
+
+# Networking & P2P
+libp2p = { version = "0.54", features = ["tokio", "quic", "noise", "kad", "mdns", "identify"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+# CRDT
+automerge = "0.5"
+
+# Database & Storage
+aws-sdk-s3 = "1"
+aws-config = "1"
+
+# Logging & Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Internal crates
+phantom-core = { path = "crates/phantom-core" }
+phantom-crypto = { path = "crates/phantom-crypto" }
+phantom-net = { path = "crates/phantom-net" }
+phantom-infra = { path = "crates/phantom-infra" }
+phantom-ai = { path = "crates/phantom-ai" }
+phantom-storage = { path = "crates/phantom-storage" }
+phantom-brain = { path = "crates/phantom-brain" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
