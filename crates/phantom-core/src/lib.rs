@@ -14,6 +14,7 @@
 
 pub mod agent_manager;
 pub mod audit;
+pub mod beyond_human;
 pub mod errors;
 pub mod framework_ingestion;
 pub mod job_queue;
@@ -22,9 +23,15 @@ pub mod message_bus;
 pub mod pipeline;
 pub mod self_healer;
 pub mod task_graph;
+pub mod zero_footprint;
 
 pub use agent_manager::{AgentHandle, AgentManager, AgentState};
 pub use audit::{AuditEntry, AuditLog};
+pub use beyond_human::{
+    AmbientDaemon, AmbientSnapshot, BeyondError, CostOracle, CostReport, GitConfig, GitOpResult,
+    LearningCategory, PredictiveScanner, ProjectLearning, ProjectMemory, ScanReport, SelfScheduler,
+    SelfUpdater, SmartGit, VoiceConfig, VoiceNotifier,
+};
 pub use errors::CoreError;
 pub use framework_ingestion::{
     ComponentDag, ComponentExtractor, ExecutionPlan, ExtractedArchitecture, IngestionPipeline,
@@ -38,3 +45,7 @@ pub use message_bus::{Message, MessageBus, MessageKind};
 pub use pipeline::{BuildPhase, BuildPipeline};
 pub use self_healer::{HealingLayer, HealingResult, SelfHealer};
 pub use task_graph::{Task, TaskGraph, TaskStatus};
+pub use zero_footprint::{
+    CleanupResult, DiskPolicy, RuntimeSession, SecureBuffer, SecureString, SessionGuard,
+    SessionSecrets, StartupValidator, ValidationReport, Violation, ZeroFootprintError,
+};

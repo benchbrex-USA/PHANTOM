@@ -1,265 +1,227 @@
-#!/usr/bin/env bash
-# ============================================================================
-# Phantom — Autonomous AI Engineering Team
-# curl-installable bootstrap script for macOS
-#
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/benchbrex/phantom/main/install.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/benchbrex/phantom/main/install.sh | bash -s -- --version 0.2.0
-#
-# What this script does:
-#   1. Detects macOS architecture (arm64 / x86_64)
-#   2. Downloads the signed Phantom binary for that arch
-#   3. Verifies SHA-256 checksum
-#   4. Verifies Apple code signature (if codesign is available)
-#   5. Installs to /usr/local/bin/phantom
-#   6. Runs `phantom doctor` as first-run bootstrap
-#
-# Requirements: macOS 13+, curl, shasum
-# ============================================================================
+#!/usr/bin/env sh
+# PHANTOM — Autonomous AI Software Builder
+# Install script: curl -fsSL https://phantom.benchbrex.com/install.sh | sh
+# Supports: macOS 13 (Ventura)+ on Apple Silicon (arm64) and Intel (x86_64)
+# ---------------------------------------------------------------------------
 
-set -euo pipefail
+set -e
 
-# ── Configuration ───────────────────────────────────────────────────────────
-
-REPO_OWNER="benchbrex"
-REPO_NAME="phantom"
-BINARY_NAME="phantom"
-INSTALL_DIR="/usr/local/bin"
-GITHUB_API="https://api.github.com"
-GITHUB_RELEASES="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases"
-REQUIRED_OS="Darwin"
-MIN_MACOS_VERSION="13.0"
-APPLE_TEAM_ID="BENCHBREX"  # Apple Developer Team ID for code signature verification
-
-# ── Colors ──────────────────────────────────────────────────────────────────
-
+# ── Colors ─────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 BOLD='\033[1m'
+DIM='\033[2m'
 RESET='\033[0m'
 
-# ── Helpers ─────────────────────────────────────────────────────────────────
+# ── Config ──────────────────────────────────────────────────────────────────
+PHANTOM_VERSION="latest"
+BASE_URL="https://phantom.benchbrex.com/releases/latest"
+INSTALL_DIR="/usr/local/bin"
+BINARY_NAME="phantom"
+BINARY_PATH="${INSTALL_DIR}/${BINARY_NAME}"
+TMP_DIR="$(mktemp -d)"
 
-info()    { echo -e "${BLUE}[info]${RESET} $1"; }
-success() { echo -e "${GREEN}[ok]${RESET}   $1"; }
-warn()    { echo -e "${YELLOW}[warn]${RESET} $1"; }
-error()   { echo -e "${RED}[error]${RESET} $1" >&2; }
-fatal()   { error "$1"; exit 1; }
+# ── Helpers ─────────────────────────────────────────────────────────────────
+info()    { printf "${CYAN}  →${RESET}  %s\n" "$1"; }
+success() { printf "${GREEN}  ✓${RESET}  %s\n" "$1"; }
+warn()    { printf "${YELLOW}  ⚠${RESET}  %s\n" "$1"; }
+error()   { printf "${RED}  ✗${RESET}  %s\n" "$1" >&2; exit 1; }
+bold()    { printf "${BOLD}%s${RESET}\n" "$1"; }
+dim()     { printf "${DIM}%s${RESET}\n" "$1"; }
 
 cleanup() {
-    if [ -n "${TMPDIR_CREATED:-}" ] && [ -d "${WORK_DIR:-}" ]; then
-        rm -rf "$WORK_DIR"
-    fi
+  rm -rf "${TMP_DIR}"
 }
 trap cleanup EXIT
 
-# ── Parse Arguments ─────────────────────────────────────────────────────────
+# ── Banner ───────────────────────────────────────────────────────────────────
+printf "\n"
+printf "${BOLD}${CYAN}"
+printf "  ██████╗ ██╗  ██╗ █████╗ ███╗   ██╗████████╗ ██████╗ ███╗   ███╗\n"
+printf "  ██╔══██╗██║  ██║██╔══██╗████╗  ██║╚══██╔══╝██╔═══██╗████╗ ████║\n"
+printf "  ██████╔╝███████║███████║██╔██╗ ██║   ██║   ██║   ██║██╔████╔██║\n"
+printf "  ██╔═══╝ ██╔══██║██╔══██║██║╚██╗██║   ██║   ██║   ██║██║╚██╔╝██║\n"
+printf "  ██║     ██║  ██║██║  ██║██║ ╚████║   ██║   ╚██████╔╝██║ ╚═╝ ██║\n"
+printf "  ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝    ╚═════╝ ╚═╝     ╚═╝\n"
+printf "${RESET}"
+printf "  ${DIM}Autonomous AI Software Builder — phantom.benchbrex.com${RESET}\n"
+printf "\n"
+printf "  ${BOLD}Installing Phantom...${RESET}\n"
+printf "\n"
 
-VERSION=""
-SKIP_VERIFY=false
-SKIP_BOOTSTRAP=false
+# ── 1. Platform Check ────────────────────────────────────────────────────────
+info "Checking platform..."
 
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --version)    VERSION="$2"; shift 2 ;;
-        --no-verify)  SKIP_VERIFY=true; shift ;;
-        --no-bootstrap) SKIP_BOOTSTRAP=true; shift ;;
-        --help|-h)
-            echo "Usage: install.sh [OPTIONS]"
-            echo ""
-            echo "Options:"
-            echo "  --version VERSION   Install a specific version (default: latest)"
-            echo "  --no-verify         Skip SHA-256 and code signature verification"
-            echo "  --no-bootstrap      Skip first-run dependency bootstrap"
-            echo "  --help, -h          Show this help message"
-            exit 0
-            ;;
-        *) fatal "Unknown option: $1" ;;
-    esac
-done
-
-# ── Pre-flight Checks ──────────────────────────────────────────────────────
-
-echo -e "\n${BOLD}Phantom Installer${RESET}\n"
-
-# Check OS
 OS="$(uname -s)"
-if [ "$OS" != "$REQUIRED_OS" ]; then
-    fatal "Phantom requires macOS. Detected: $OS"
+if [ "${OS}" != "Darwin" ]; then
+  error "Phantom currently runs on macOS only. Detected OS: ${OS}"
 fi
 
-# Check macOS version
-MACOS_VERSION="$(sw_vers -productVersion 2>/dev/null || echo "0.0")"
-MACOS_MAJOR="${MACOS_VERSION%%.*}"
-if [ "$MACOS_MAJOR" -lt 13 ] 2>/dev/null; then
-    fatal "Phantom requires macOS 13 (Ventura) or later. Detected: $MACOS_VERSION"
+# macOS version check (must be 13+)
+MACOS_VERSION="$(sw_vers -productVersion)"
+MACOS_MAJOR="$(echo "${MACOS_VERSION}" | cut -d. -f1)"
+if [ "${MACOS_MAJOR}" -lt 13 ]; then
+  error "Phantom requires macOS 13 (Ventura) or later. Your version: ${MACOS_VERSION}"
 fi
-success "macOS $MACOS_VERSION detected"
 
-# Detect architecture
+success "macOS ${MACOS_VERSION} — compatible"
+
+# ── 2. Architecture Detection ────────────────────────────────────────────────
+info "Detecting architecture..."
+
 ARCH="$(uname -m)"
-case "$ARCH" in
-    arm64|aarch64) ARCH_SUFFIX="aarch64-apple-darwin" ;;
-    x86_64)        ARCH_SUFFIX="x86_64-apple-darwin" ;;
-    *)             fatal "Unsupported architecture: $ARCH" ;;
+case "${ARCH}" in
+  arm64)
+    BINARY_FILE="phantom-darwin-arm64"
+    ARCH_LABEL="Apple Silicon (arm64)"
+    ;;
+  x86_64)
+    BINARY_FILE="phantom-darwin-x64"
+    ARCH_LABEL="Intel (x86_64)"
+    ;;
+  *)
+    error "Unsupported architecture: ${ARCH}. Expected arm64 or x86_64."
+    ;;
 esac
-success "Architecture: $ARCH ($ARCH_SUFFIX)"
 
-# Check required tools
-for cmd in curl shasum; do
-    if ! command -v "$cmd" &>/dev/null; then
-        fatal "Required tool not found: $cmd"
-    fi
-done
+success "${ARCH_LABEL} detected"
 
-# ── Resolve Version ────────────────────────────────────────────────────────
+# ── 3. Check Dependencies ────────────────────────────────────────────────────
+info "Checking required tools..."
 
-if [ -z "$VERSION" ]; then
-    info "Fetching latest release..."
-    VERSION=$(curl -fsSL "${GITHUB_API}/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest" \
-        | grep '"tag_name"' \
-        | head -1 \
-        | sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/')
+check_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    error "Required tool not found: $1. Please install it and re-run."
+  fi
+}
 
-    if [ -z "$VERSION" ]; then
-        fatal "Could not determine latest version. Use --version to specify."
-    fi
+check_cmd curl
+check_cmd shasum
+
+success "curl and shasum available"
+
+# ── 4. Download Binary ───────────────────────────────────────────────────────
+DOWNLOAD_URL="${BASE_URL}/${BINARY_FILE}"
+CHECKSUM_URL="${BASE_URL}/${BINARY_FILE}.sha256"
+SIG_URL="${BASE_URL}/${BINARY_FILE}.sig"
+PUBKEY_URL="https://phantom.benchbrex.com/phantom-release.pub"
+
+TMP_BINARY="${TMP_DIR}/${BINARY_FILE}"
+TMP_CHECKSUM="${TMP_DIR}/${BINARY_FILE}.sha256"
+TMP_SIG="${TMP_DIR}/${BINARY_FILE}.sig"
+TMP_PUBKEY="${TMP_DIR}/phantom-release.pub"
+
+printf "\n"
+info "Downloading Phantom binary..."
+dim "  ${DOWNLOAD_URL}"
+
+if ! curl -fsSL --progress-bar "${DOWNLOAD_URL}" -o "${TMP_BINARY}"; then
+  error "Failed to download binary from ${DOWNLOAD_URL}"
 fi
-success "Version: $VERSION"
 
-# ── Create Working Directory ────────────────────────────────────────────────
+success "Binary downloaded ($(du -sh "${TMP_BINARY}" | cut -f1))"
 
-WORK_DIR="$(mktemp -d)"
-TMPDIR_CREATED=1
-info "Working directory: $WORK_DIR"
+# ── 5. SHA-256 Checksum Verification ────────────────────────────────────────
+info "Verifying SHA-256 checksum..."
 
-# ── Download Binary + Checksum ──────────────────────────────────────────────
+if curl -fsSL "${CHECKSUM_URL}" -o "${TMP_CHECKSUM}" 2>/dev/null; then
+  EXPECTED_HASH="$(cat "${TMP_CHECKSUM}" | awk '{print $1}')"
+  ACTUAL_HASH="$(shasum -a 256 "${TMP_BINARY}" | awk '{print $1}')"
 
-ASSET_NAME="${BINARY_NAME}-${VERSION}-${ARCH_SUFFIX}"
-BINARY_URL="${GITHUB_RELEASES}/download/v${VERSION}/${ASSET_NAME}.tar.gz"
-CHECKSUM_URL="${GITHUB_RELEASES}/download/v${VERSION}/${ASSET_NAME}.tar.gz.sha256"
-
-info "Downloading ${ASSET_NAME}.tar.gz ..."
-HTTP_CODE=$(curl -fsSL -w "%{http_code}" -o "${WORK_DIR}/${ASSET_NAME}.tar.gz" "$BINARY_URL" 2>/dev/null || true)
-if [ ! -f "${WORK_DIR}/${ASSET_NAME}.tar.gz" ] || [ "${HTTP_CODE:-0}" != "200" ]; then
-    fatal "Download failed. Check that version $VERSION exists at:\n  $BINARY_URL"
-fi
-DOWNLOAD_SIZE=$(wc -c < "${WORK_DIR}/${ASSET_NAME}.tar.gz" | tr -d ' ')
-success "Downloaded $(( DOWNLOAD_SIZE / 1024 )) KB"
-
-# ── Verify SHA-256 Checksum ─────────────────────────────────────────────────
-
-if [ "$SKIP_VERIFY" = false ]; then
-    info "Downloading checksum..."
-    if curl -fsSL -o "${WORK_DIR}/${ASSET_NAME}.tar.gz.sha256" "$CHECKSUM_URL" 2>/dev/null; then
-        info "Verifying SHA-256 checksum..."
-        EXPECTED_HASH=$(awk '{print $1}' "${WORK_DIR}/${ASSET_NAME}.tar.gz.sha256")
-        ACTUAL_HASH=$(shasum -a 256 "${WORK_DIR}/${ASSET_NAME}.tar.gz" | awk '{print $1}')
-
-        if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
-            error "Checksum mismatch!"
-            error "  Expected: $EXPECTED_HASH"
-            error "  Actual:   $ACTUAL_HASH"
-            fatal "The downloaded binary may be corrupted or tampered with."
-        fi
-        success "SHA-256 checksum verified"
-    else
-        warn "Checksum file not available — skipping verification"
-    fi
+  if [ "${EXPECTED_HASH}" != "${ACTUAL_HASH}" ]; then
+    error "SHA-256 checksum mismatch! Binary may be corrupted or tampered with.\n  Expected: ${EXPECTED_HASH}\n  Got:      ${ACTUAL_HASH}"
+  fi
+  success "SHA-256 checksum verified"
 else
-    warn "Checksum verification skipped (--no-verify)"
+  warn "Checksum file unavailable — skipping SHA-256 verification"
 fi
 
-# ── Extract Binary ──────────────────────────────────────────────────────────
+# ── 6. Ed25519 Signature Verification ───────────────────────────────────────
+info "Verifying Ed25519 cryptographic signature..."
 
-info "Extracting binary..."
-tar -xzf "${WORK_DIR}/${ASSET_NAME}.tar.gz" -C "$WORK_DIR"
+if curl -fsSL "${SIG_URL}" -o "${TMP_SIG}" 2>/dev/null && \
+   curl -fsSL "${PUBKEY_URL}" -o "${TMP_PUBKEY}" 2>/dev/null; then
 
-EXTRACTED_BINARY="${WORK_DIR}/${BINARY_NAME}"
-if [ ! -f "$EXTRACTED_BINARY" ]; then
-    # Try nested directory
-    EXTRACTED_BINARY=$(find "$WORK_DIR" -name "$BINARY_NAME" -type f | head -1)
-    if [ -z "$EXTRACTED_BINARY" ]; then
-        fatal "Binary not found in archive"
-    fi
-fi
-chmod +x "$EXTRACTED_BINARY"
-success "Binary extracted"
-
-# ── Verify Code Signature ──────────────────────────────────────────────────
-
-if [ "$SKIP_VERIFY" = false ] && command -v codesign &>/dev/null; then
-    info "Verifying Apple code signature..."
-    if codesign --verify --deep --strict "$EXTRACTED_BINARY" 2>/dev/null; then
-        # Check signing identity
-        SIGNING_ID=$(codesign -dv "$EXTRACTED_BINARY" 2>&1 | grep "TeamIdentifier" | awk -F= '{print $2}')
-        if [ -n "$SIGNING_ID" ] && [ "$SIGNING_ID" != "not set" ]; then
-            success "Code signature valid (Team: $SIGNING_ID)"
-        else
-            warn "Binary is signed but team identifier is not set"
-        fi
+  # Use openssl if available (macOS ships it)
+  if command -v openssl >/dev/null 2>&1; then
+    if openssl pkeyutl -verify \
+      -pubin -inkey "${TMP_PUBKEY}" \
+      -sigfile "${TMP_SIG}" \
+      -in "${TMP_BINARY}" \
+      -pkeyopt digest:sha512 >/dev/null 2>&1; then
+      success "Ed25519 signature verified — binary is authentic"
     else
-        warn "Code signature verification failed — binary may be unsigned"
-        warn "This is expected for development builds"
+      error "Ed25519 signature verification FAILED. Do not use this binary.\nContact: phantom.benchbrex.com"
     fi
-fi
-
-# ── Install Binary ─────────────────────────────────────────────────────────
-
-info "Installing to ${INSTALL_DIR}/${BINARY_NAME} ..."
-
-# Check if install dir exists and is writable
-if [ ! -d "$INSTALL_DIR" ]; then
-    warn "$INSTALL_DIR does not exist, creating with sudo..."
-    sudo mkdir -p "$INSTALL_DIR"
-fi
-
-if [ -w "$INSTALL_DIR" ]; then
-    mv "$EXTRACTED_BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
+  else
+    warn "openssl not found — skipping Ed25519 verification (install openssl for full security)"
+  fi
 else
-    info "Elevated permissions required for $INSTALL_DIR"
-    sudo mv "$EXTRACTED_BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
-    sudo chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+  warn "Signature files unavailable — skipping Ed25519 verification"
 fi
 
-# Verify installation
-if command -v phantom &>/dev/null; then
-    INSTALLED_VERSION=$(phantom --version 2>/dev/null | awk '{print $2}' || echo "unknown")
-    success "Phantom $INSTALLED_VERSION installed to $(command -v phantom)"
+# ── 7. Install Binary ────────────────────────────────────────────────────────
+printf "\n"
+info "Installing to ${BINARY_PATH}..."
+
+chmod +x "${TMP_BINARY}"
+
+# Check if we can write without sudo
+if [ -w "${INSTALL_DIR}" ]; then
+  mv "${TMP_BINARY}" "${BINARY_PATH}"
 else
-    if [ -x "${INSTALL_DIR}/${BINARY_NAME}" ]; then
-        success "Installed to ${INSTALL_DIR}/${BINARY_NAME}"
-        warn "$INSTALL_DIR may not be in your PATH. Add it:"
-        echo -e "  export PATH=\"${INSTALL_DIR}:\$PATH\""
-    else
-        fatal "Installation failed"
-    fi
+  info "Requesting sudo to write to ${INSTALL_DIR}..."
+  sudo mv "${TMP_BINARY}" "${BINARY_PATH}"
 fi
 
-# ── First-Run Bootstrap ────────────────────────────────────────────────────
-
-if [ "$SKIP_BOOTSTRAP" = false ]; then
-    echo ""
-    info "Running first-run dependency check..."
-    echo ""
-    "${INSTALL_DIR}/${BINARY_NAME}" doctor 2>/dev/null || true
+# Verify install
+if ! command -v phantom >/dev/null 2>&1; then
+  # Try direct path in case PATH not updated yet
+  if [ ! -x "${BINARY_PATH}" ]; then
+    error "Installation failed — binary not found at ${BINARY_PATH}"
+  fi
 fi
 
-# ── Done ────────────────────────────────────────────────────────────────────
+success "Phantom installed at ${BINARY_PATH}"
 
-echo ""
-echo -e "${BOLD}${GREEN}Phantom installed successfully.${RESET}"
-echo ""
-echo "Next steps:"
-echo "  1. Activate with your license key:"
-echo "     phantom activate --key PH1-<your-key>"
-echo ""
-echo "  2. Build a project:"
-echo "     phantom build --framework architecture.md"
-echo ""
-echo "  3. Keep up to date:"
-echo "     phantom self-update"
-echo ""
+# ── 8. Shell PATH Check ──────────────────────────────────────────────────────
+case ":${PATH}:" in
+  *":${INSTALL_DIR}:"*)
+    ;;
+  *)
+    warn "${INSTALL_DIR} is not in your PATH."
+    printf "\n"
+    printf "  Add this to your shell profile and restart your terminal:\n"
+    printf "\n"
+    printf "    ${CYAN}# For zsh (default on macOS):${RESET}\n"
+    printf "    ${BOLD}echo 'export PATH=\"/usr/local/bin:\$PATH\"' >> ~/.zshrc && source ~/.zshrc${RESET}\n"
+    printf "\n"
+    printf "    ${CYAN}# For bash:${RESET}\n"
+    printf "    ${BOLD}echo 'export PATH=\"/usr/local/bin:\$PATH\"' >> ~/.bash_profile && source ~/.bash_profile${RESET}\n"
+    printf "\n"
+    ;;
+esac
+
+# ── 9. Version Check ─────────────────────────────────────────────────────────
+INSTALLED_VERSION="$("${BINARY_PATH}" --version 2>/dev/null || echo 'unknown')"
+success "Installed version: ${INSTALLED_VERSION}"
+
+# ── 10. Success Banner ───────────────────────────────────────────────────────
+printf "\n"
+printf "${GREEN}${BOLD}  ════════════════════════════════════════════════${RESET}\n"
+printf "${GREEN}${BOLD}   Phantom installed successfully! 🎉${RESET}\n"
+printf "${GREEN}${BOLD}  ════════════════════════════════════════════════${RESET}\n"
+printf "\n"
+printf "  ${BOLD}Next step — activate with your license key:${RESET}\n"
+printf "\n"
+printf "    ${CYAN}phantom activate --key PH1-xxxxx-xxxxx${RESET}\n"
+printf "\n"
+printf "  ${DIM}Don't have a key? Visit: https://phantom.benchbrex.com${RESET}\n"
+printf "\n"
+printf "  ${BOLD}Need help?${RESET}\n"
+printf "  ${DIM}→ phantom doctor          Check system health${RESET}\n"
+printf "  ${DIM}→ phantom --help          All commands${RESET}\n"
+printf "  ${DIM}→ phantom.benchbrex.com   Documentation${RESET}\n"
+printf "\n"

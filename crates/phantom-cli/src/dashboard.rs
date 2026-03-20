@@ -163,7 +163,11 @@ impl DashboardState {
 
         // Per-phase status
         for ps in &pipeline.phases {
-            if let Some(pd) = self.phases.iter_mut().find(|p| p.name == ps.phase.display_name()) {
+            if let Some(pd) = self
+                .phases
+                .iter_mut()
+                .find(|p| p.name == ps.phase.display_name())
+            {
                 pd.status = match ps.status {
                     PhaseState::Pending => "pending".to_string(),
                     PhaseState::Running => "running".to_string(),
@@ -190,7 +194,9 @@ impl DashboardState {
         for agent_display in &mut self.agents {
             // Match agent display to manager by role name
             let role_name = agent_display.name.as_str();
-            let handle = manager.agents().find(|a| a.role.display_name() == role_name);
+            let handle = manager
+                .agents()
+                .find(|a| a.role.display_name() == role_name);
 
             if let Some(h) = handle {
                 agent_display.status = match h.state {
@@ -273,7 +279,7 @@ pub fn render(frame: &mut Frame, state: &DashboardState) {
         .constraints([
             Constraint::Length(3),  // Header
             Constraint::Length(3),  // Progress bar
-            Constraint::Min(10),   // Main content (phases + agents)
+            Constraint::Min(10),    // Main content (phases + agents)
             Constraint::Length(10), // Logs
         ])
         .split(frame.area());
@@ -345,7 +351,11 @@ fn render_progress(frame: &mut Frame, area: Rect, state: &DashboardState) {
         )
     };
 
-    let gauge_color = if state.halted { Color::Red } else { Color::Green };
+    let gauge_color = if state.halted {
+        Color::Red
+    } else {
+        Color::Green
+    };
 
     let progress = Gauge::default()
         .block(
@@ -414,15 +424,12 @@ fn render_agents(frame: &mut Frame, area: Rect, state: &DashboardState) {
                 _ => Style::default(),
             };
 
-            let task_display = agent
-                .current_task
-                .as_deref()
-                .unwrap_or("-")
-                .to_string();
+            let task_display = agent.current_task.as_deref().unwrap_or("-").to_string();
 
             let stats = format!(
                 "{}/{}",
-                agent.tasks_completed, agent.tasks_completed + agent.tasks_failed
+                agent.tasks_completed,
+                agent.tasks_completed + agent.tasks_failed
             );
 
             Row::new(vec![
@@ -488,7 +495,11 @@ fn render_logs(frame: &mut Frame, area: Rect, state: &DashboardState) {
     };
 
     let logs = Paragraph::new(log_text)
-        .block(Block::default().borders(Borders::ALL).title(scroll_indicator))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(scroll_indicator),
+        )
         .wrap(Wrap { trim: false });
 
     frame.render_widget(logs, area);
@@ -620,7 +631,7 @@ pub fn render_brain_search(frame: &mut Frame, state: &BrainSearchState) {
         .constraints([
             Constraint::Length(3), // Header
             Constraint::Length(3), // Search input
-            Constraint::Min(10),  // Results
+            Constraint::Min(10),   // Results
         ])
         .split(frame.area());
 
@@ -659,20 +670,14 @@ pub fn render_brain_search(frame: &mut Frame, state: &BrainSearchState) {
         Span::raw("> "),
         Span::styled(&state.query, Style::default().fg(Color::Yellow)),
     ]))
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(search_label),
-    );
+    .block(Block::default().borders(Borders::ALL).title(search_label));
     frame.render_widget(input, chunks[1]);
 
     // Results
     if let Some(ref err) = state.error {
-        let error_para = Paragraph::new(Line::styled(
-            err.as_str(),
-            Style::default().fg(Color::Red),
-        ))
-        .block(Block::default().borders(Borders::ALL).title("Error"));
+        let error_para =
+            Paragraph::new(Line::styled(err.as_str(), Style::default().fg(Color::Red)))
+                .block(Block::default().borders(Borders::ALL).title("Error"));
         frame.render_widget(error_para, chunks[2]);
     } else if state.results.is_empty() && !state.query.is_empty() {
         let empty = Paragraph::new("No results found.")
@@ -708,8 +713,7 @@ pub fn render_brain_search(frame: &mut Frame, state: &BrainSearchState) {
             })
             .collect();
 
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Results"));
+        let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Results"));
         frame.render_widget(list, result_chunks[0]);
 
         // Detail panel
@@ -764,7 +768,10 @@ pub async fn run_live_dashboard(
                             .get("kind")
                             .and_then(|v| v.as_str())
                             .unwrap_or("progress");
-                        s.push_log(format!("[{}] [{}] [{}] {}", ts, msg.from, detail, msg.payload));
+                        s.push_log(format!(
+                            "[{}] [{}] [{}] {}",
+                            ts, msg.from, detail, msg.payload
+                        ));
                     }
                     MessageKind::TaskCompleted => {
                         s.push_log(format!(
@@ -1143,7 +1150,11 @@ mod tests {
         state.update_from_agents(&manager);
 
         // Find the Backend Agent in display
-        let backend = state.agents.iter().find(|a| a.name == "Backend Agent").unwrap();
+        let backend = state
+            .agents
+            .iter()
+            .find(|a| a.name == "Backend Agent")
+            .unwrap();
         assert_eq!(backend.status, "running");
         assert_eq!(backend.current_task.as_deref(), Some("task-123"));
         assert_eq!(backend.tokens_used, 7000);
@@ -1199,7 +1210,11 @@ mod tests {
         state.update_from_pipeline(&pipeline);
 
         // Ingest should be running
-        let ingest = state.phases.iter().find(|p| p.name.contains("Ingest")).unwrap();
+        let ingest = state
+            .phases
+            .iter()
+            .find(|p| p.name.contains("Ingest"))
+            .unwrap();
         assert_eq!(ingest.status, "running");
 
         // Infrastructure should be pending

@@ -27,6 +27,9 @@ pub enum Provider {
     Render,
     GitHub,
     CloudflareR2,
+    Hetzner,
+    Vultr,
+    DigitalOcean,
 }
 
 /// All providers in priority order (primary first).
@@ -45,6 +48,9 @@ pub const ALL_PROVIDERS: &[Provider] = &[
     Provider::Render,
     Provider::GitHub,
     Provider::CloudflareR2,
+    Provider::Hetzner,
+    Provider::Vultr,
+    Provider::DigitalOcean,
 ];
 
 impl Provider {
@@ -64,6 +70,9 @@ impl Provider {
             Self::Render => "Render",
             Self::GitHub => "GitHub",
             Self::CloudflareR2 => "Cloudflare R2",
+            Self::Hetzner => "Hetzner Cloud",
+            Self::Vultr => "Vultr",
+            Self::DigitalOcean => "DigitalOcean",
         }
     }
 
@@ -83,6 +92,9 @@ impl Provider {
             Self::Render => "Static + DB (static hosting)",
             Self::GitHub => "Unlimited repos (code + CI/CD)",
             Self::CloudflareR2 => "10GB (encrypted blob storage)",
+            Self::Hetzner => "CX22 2vCPU/4GB (cheapest EU compute)",
+            Self::Vultr => "vc2-1c-1gb $5/mo (global VPS)",
+            Self::DigitalOcean => "s-1vcpu-1gb $6/mo (reliable VPS)",
         }
     }
 
@@ -103,6 +115,9 @@ impl Provider {
             Self::Render => None,  // API-only
             Self::GitHub => Some("gh"),
             Self::CloudflareR2 => Some("wrangler"),
+            Self::Hetzner => Some("hcloud"),
+            Self::Vultr => None, // API-only
+            Self::DigitalOcean => Some("doctl"),
         }
     }
 
@@ -123,26 +138,36 @@ impl Provider {
             Self::Render => vec![ResourceType::Compute, ResourceType::Database],
             Self::GitHub => vec![ResourceType::Ci, ResourceType::CodeHost],
             Self::CloudflareR2 => vec![ResourceType::Storage],
+            Self::Hetzner => vec![ResourceType::Compute, ResourceType::Storage],
+            Self::Vultr => vec![ResourceType::Compute, ResourceType::Storage],
+            Self::DigitalOcean => vec![
+                ResourceType::Compute,
+                ResourceType::Storage,
+                ResourceType::Database,
+            ],
         }
     }
 
     /// Priority rank (lower = try first). Based on Architecture Framework §9.
     pub fn priority(&self) -> u8 {
         match self {
-            Self::OracleCloud => 1,  // Primary compute
-            Self::GoogleCloud => 2,  // Secondary compute
-            Self::AwsFreeTier => 3,  // Backup compute
-            Self::Cloudflare => 4,   // Edge + DNS
-            Self::CloudflareR2 => 5, // Blob storage
-            Self::GitHub => 6,       // Code + CI
-            Self::Supabase => 7,     // Primary DB
-            Self::Neon => 8,         // Backup DB
-            Self::FlyIo => 9,        // P2P mesh nodes
-            Self::Upstash => 10,     // Cache
-            Self::Railway => 11,     // Ephemeral
-            Self::Vercel => 12,      // Frontend
-            Self::Netlify => 13,     // Frontend backup
-            Self::Render => 14,      // Static hosting
+            Self::OracleCloud => 1,   // Primary compute
+            Self::GoogleCloud => 2,   // Secondary compute
+            Self::AwsFreeTier => 3,   // Backup compute
+            Self::Cloudflare => 4,    // Edge + DNS
+            Self::CloudflareR2 => 5,  // Blob storage
+            Self::GitHub => 6,        // Code + CI
+            Self::Supabase => 7,      // Primary DB
+            Self::Neon => 8,          // Backup DB
+            Self::FlyIo => 9,         // P2P mesh nodes
+            Self::Upstash => 10,      // Cache
+            Self::Railway => 11,      // Ephemeral
+            Self::Vercel => 12,       // Frontend
+            Self::Netlify => 13,      // Frontend backup
+            Self::Render => 14,       // Static hosting
+            Self::Hetzner => 15,      // Cheap EU VPS
+            Self::Vultr => 16,        // Global VPS
+            Self::DigitalOcean => 17, // Reliable VPS
         }
     }
 
@@ -157,6 +182,9 @@ impl Provider {
             Self::CloudflareR2 => vec![Self::AwsFreeTier],
             Self::Vercel => vec![Self::Netlify, Self::Render],
             Self::Netlify => vec![Self::Vercel, Self::Render],
+            Self::Hetzner => vec![Self::Vultr, Self::DigitalOcean],
+            Self::Vultr => vec![Self::Hetzner, Self::DigitalOcean],
+            Self::DigitalOcean => vec![Self::Vultr, Self::Hetzner],
             _ => Vec::new(),
         }
     }
@@ -283,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_all_providers_count() {
-        assert_eq!(ALL_PROVIDERS.len(), 14);
+        assert_eq!(ALL_PROVIDERS.len(), 17);
     }
 
     #[test]

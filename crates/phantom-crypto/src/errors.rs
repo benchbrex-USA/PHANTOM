@@ -31,4 +31,13 @@ pub enum CryptoError {
 
     #[error("random number generation failed")]
     RngFailed,
+
+    #[error("TOTP verification failed")]
+    TotpVerificationFailed,
+
+    #[error("invalid mnemonic phrase: {0}")]
+    InvalidMnemonic(String),
+
+    #[error("remote operation failed: {0}")]
+    RemoteOperationFailed(String),
 }

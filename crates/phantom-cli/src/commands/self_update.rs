@@ -133,10 +133,7 @@ pub async fn run(force: bool) -> anyhow::Result<()> {
 
     // Step 8: Replace current binary atomically
     let current_exe = env::current_exe()?;
-    println!(
-        "  Installing to {}...",
-        current_exe.display()
-    );
+    println!("  Installing to {}...", current_exe.display());
     replace_binary(&binary_path, &current_exe)?;
     println!("  \x1b[32m\u{2713}\x1b[0m Installed");
 
@@ -148,10 +145,7 @@ pub async fn run(force: bool) -> anyhow::Result<()> {
         _ => println!("  \x1b[33m!\x1b[0m Run `phantom doctor` to check dependencies"),
     }
 
-    println!(
-        "\n\x1b[32mPhantom updated to {}.\x1b[0m",
-        latest_version
-    );
+    println!("\n\x1b[32mPhantom updated to {}.\x1b[0m", latest_version);
 
     Ok(())
 }
@@ -323,7 +317,8 @@ fn replace_binary(
 
     // Back up current binary
     if current_exe.exists() {
-        fs::rename(current_exe, &backup_path).or_else(|_| fs::copy(current_exe, &backup_path).map(|_| ()))?;
+        fs::rename(current_exe, &backup_path)
+            .or_else(|_| fs::copy(current_exe, &backup_path).map(|_| ()))?;
     }
 
     // Install new binary
@@ -346,10 +341,7 @@ fn replace_binary(
 /// Simple semver comparison: returns true if `new` is newer than `current`.
 fn is_newer(new: &str, current: &str) -> bool {
     let parse = |v: &str| -> (u64, u64, u64) {
-        let parts: Vec<u64> = v
-            .split('.')
-            .filter_map(|p| p.parse().ok())
-            .collect();
+        let parts: Vec<u64> = v.split('.').filter_map(|p| p.parse().ok()).collect();
         (
             parts.first().copied().unwrap_or(0),
             parts.get(1).copied().unwrap_or(0),
@@ -393,9 +385,7 @@ mod tests {
         if cfg!(target_os = "macos") {
             assert!(result.is_ok());
             let suffix = result.unwrap();
-            assert!(
-                suffix == "aarch64-apple-darwin" || suffix == "x86_64-apple-darwin"
-            );
+            assert!(suffix == "aarch64-apple-darwin" || suffix == "x86_64-apple-darwin");
         }
     }
 

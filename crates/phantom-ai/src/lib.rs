@@ -14,8 +14,8 @@ pub mod prompts;
 
 pub use agents::{AgentConfig, AgentRole, ALL_ROLES};
 pub use claude_md::{
-    ClaudeMdError, ClaudeMdGenerator, GeneratedClaudeMd, TemplateVars,
-    cleanup_all as cleanup_claude_mds, generate_team_claude_mds,
+    cleanup_all as cleanup_claude_mds, generate_team_claude_mds, ClaudeMdError, ClaudeMdGenerator,
+    GeneratedClaudeMd, TemplateVars,
 };
 pub use client::{
     AnthropicClient, CompletionRequest, CompletionResponse, CostEstimate, Message, TokenUsage,

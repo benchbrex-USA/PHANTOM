@@ -9,6 +9,7 @@ members = [
     "crates/phantom-ai",
     "crates/phantom-storage",
     "crates/phantom-brain",
+    "integration_tests",
 ]
 
 [workspace.package]

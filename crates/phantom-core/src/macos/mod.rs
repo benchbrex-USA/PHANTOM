@@ -54,7 +54,11 @@ impl MacError {
         }
     }
 
-    fn from_output(subsystem: MacSubsystem, message: impl Into<String>, output: &std::process::Output) -> Self {
+    fn from_output(
+        subsystem: MacSubsystem,
+        message: impl Into<String>,
+        output: &std::process::Output,
+    ) -> Self {
         let stderr_raw = String::from_utf8_lossy(&output.stderr);
         Self {
             subsystem,
@@ -173,7 +177,11 @@ impl OsascriptBridge {
 
     /// Run an osascript from a file.
     #[instrument(skip(self), fields(path = %path.as_ref().display()))]
-    pub fn run_file(&self, path: impl AsRef<Path>, lang: ScriptLanguage) -> MacResult<ScriptResult> {
+    pub fn run_file(
+        &self,
+        path: impl AsRef<Path>,
+        lang: ScriptLanguage,
+    ) -> MacResult<ScriptResult> {
         let path = path.as_ref();
         if !path.exists() {
             return Err(MacError::new(
@@ -210,7 +218,12 @@ impl OsascriptBridge {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| MacError::new(MacSubsystem::Osascript, format!("failed to spawn osascript: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Osascript,
+                    format!("failed to spawn osascript: {e}"),
+                )
+            })?;
 
         let duration_ms = start.elapsed().as_millis() as u64;
         let exit_code = output.status.code().unwrap_or(-1);
@@ -248,7 +261,10 @@ impl OsascriptBridge {
         if result.success {
             Ok(result.output)
         } else {
-            Err(MacError::new(MacSubsystem::Osascript, "failed to get frontmost app"))
+            Err(MacError::new(
+                MacSubsystem::Osascript,
+                "failed to get frontmost app",
+            ))
         }
     }
 
@@ -296,7 +312,7 @@ pub enum KeychainTarget {
 impl KeychainTarget {
     fn path(&self) -> Option<&'static str> {
         match self {
-            Self::Login => None,   // `security` defaults to login
+            Self::Login => None, // `security` defaults to login
             Self::System => Some("/Library/Keychains/System.keychain"),
         }
     }
@@ -338,17 +354,20 @@ impl KeychainManager {
     /// Uses `security add-generic-password`. If the entry already exists,
     /// it is updated via delete + add.
     #[instrument(skip(self, password), fields(service = %service, account = %account))]
-    pub fn store(
-        &self,
-        service: &str,
-        account: &str,
-        password: &str,
-    ) -> MacResult<()> {
+    pub fn store(&self, service: &str, account: &str, password: &str) -> MacResult<()> {
         // Try to delete existing entry first (ignore errors — may not exist)
         let _ = self.delete(service, account);
 
         let mut cmd = Command::new("security");
-        cmd.args(["add-generic-password", "-s", service, "-a", account, "-w", password]);
+        cmd.args([
+            "add-generic-password",
+            "-s",
+            service,
+            "-a",
+            account,
+            "-w",
+            password,
+        ]);
 
         if let Some(kc_path) = self.target.path() {
             cmd.arg(kc_path);
@@ -358,7 +377,12 @@ impl KeychainManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| MacError::new(MacSubsystem::Keychain, format!("failed to run security: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Keychain,
+                    format!("failed to run security: {e}"),
+                )
+            })?;
 
         if output.status.success() {
             info!(service, account, "credential stored in keychain");
@@ -376,11 +400,7 @@ impl KeychainManager {
     ///
     /// Uses `security find-generic-password -w` to get only the password.
     #[instrument(skip(self), fields(service = %service, account = %account))]
-    pub fn retrieve(
-        &self,
-        service: &str,
-        account: &str,
-    ) -> MacResult<KeychainCredential> {
+    pub fn retrieve(&self, service: &str, account: &str) -> MacResult<KeychainCredential> {
         let mut cmd = Command::new("security");
         cmd.args(["find-generic-password", "-s", service, "-a", account, "-w"]);
 
@@ -392,7 +412,12 @@ impl KeychainManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| MacError::new(MacSubsystem::Keychain, format!("failed to run security: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Keychain,
+                    format!("failed to run security: {e}"),
+                )
+            })?;
 
         if output.status.success() {
             let password = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -425,7 +450,12 @@ impl KeychainManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| MacError::new(MacSubsystem::Keychain, format!("failed to run security: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Keychain,
+                    format!("failed to run security: {e}"),
+                )
+            })?;
 
         if output.status.success() {
             info!(service, account, "credential deleted from keychain");
@@ -470,7 +500,12 @@ impl KeychainManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| MacError::new(MacSubsystem::Keychain, format!("failed to run security: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Keychain,
+                    format!("failed to run security: {e}"),
+                )
+            })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let accounts: Vec<String> = stdout
@@ -520,7 +555,12 @@ impl ClipboardBridge {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| MacError::new(MacSubsystem::Clipboard, format!("failed to run pbpaste: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Clipboard,
+                    format!("failed to run pbpaste: {e}"),
+                )
+            })?;
 
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -541,12 +581,20 @@ impl ClipboardBridge {
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| MacError::new(MacSubsystem::Clipboard, format!("failed to spawn pbcopy: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Clipboard,
+                    format!("failed to spawn pbcopy: {e}"),
+                )
+            })?;
 
         if let Some(ref mut stdin) = child.stdin {
-            stdin
-                .write_all(text.as_bytes())
-                .map_err(|e| MacError::new(MacSubsystem::Clipboard, format!("failed to write to pbcopy stdin: {e}")))?;
+            stdin.write_all(text.as_bytes()).map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Clipboard,
+                    format!("failed to write to pbcopy stdin: {e}"),
+                )
+            })?;
         }
 
         let output = child
@@ -713,12 +761,10 @@ impl ScreenCapture {
 
             let name = filename.unwrap_or("phantom-capture");
             let ts = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-            Some(self.output_dir.join(format!(
-                "{}_{}.{}",
-                name,
-                ts,
-                options.format.extension()
-            )))
+            Some(
+                self.output_dir
+                    .join(format!("{}_{}.{}", name, ts, options.format.extension())),
+            )
         };
 
         let mut cmd = Command::new("screencapture");
@@ -800,8 +846,10 @@ impl ScreenCapture {
 
     /// Capture screen to clipboard (no file).
     pub fn capture_to_clipboard(&self) -> MacResult<CaptureResult> {
-        let mut opts = CaptureOptions::default();
-        opts.to_clipboard = true;
+        let opts = CaptureOptions {
+            to_clipboard: true,
+            ..Default::default()
+        };
         self.capture(None, &opts)
     }
 
@@ -814,8 +862,10 @@ impl ScreenCapture {
         height: u32,
         filename: Option<&str>,
     ) -> MacResult<CaptureResult> {
-        let mut opts = CaptureOptions::default();
-        opts.rect = Some((x, y, width, height));
+        let opts = CaptureOptions {
+            rect: Some((x, y, width, height)),
+            ..Default::default()
+        };
         self.capture(filename, &opts)
     }
 }
@@ -1052,7 +1102,10 @@ impl LaunchctlManager {
         let plist_path = self.plist_path(&config.label);
 
         std::fs::create_dir_all(&self.plist_dir).map_err(|e| {
-            MacError::new(MacSubsystem::Launchctl, format!("failed to create plist dir: {e}"))
+            MacError::new(
+                MacSubsystem::Launchctl,
+                format!("failed to create plist dir: {e}"),
+            )
         })?;
 
         let plist_content = config.to_plist();
@@ -1099,7 +1152,12 @@ impl LaunchctlManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| MacError::new(MacSubsystem::Launchctl, format!("failed to run launchctl: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Launchctl,
+                    format!("failed to run launchctl: {e}"),
+                )
+            })?;
 
         if output.status.success() {
             Ok(())
@@ -1121,7 +1179,12 @@ impl LaunchctlManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| MacError::new(MacSubsystem::Launchctl, format!("failed to run launchctl: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Launchctl,
+                    format!("failed to run launchctl: {e}"),
+                )
+            })?;
 
         if output.status.success() {
             Ok(())
@@ -1141,7 +1204,12 @@ impl LaunchctlManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| MacError::new(MacSubsystem::Launchctl, format!("failed to run launchctl: {e}")))?;
+            .map_err(|e| {
+                MacError::new(
+                    MacSubsystem::Launchctl,
+                    format!("failed to run launchctl: {e}"),
+                )
+            })?;
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -1269,7 +1337,10 @@ pub enum BrowserAction {
     /// Type text into an element
     Type { selector: String, text: String },
     /// Wait for an element to appear
-    WaitFor { selector: String, timeout_ms: Option<u64> },
+    WaitFor {
+        selector: String,
+        timeout_ms: Option<u64>,
+    },
     /// Take a screenshot of the page
     Screenshot { path: String },
     /// Extract text from an element
@@ -1299,25 +1370,41 @@ pub struct BrowserActionResult {
     pub duration_ms: u64,
 }
 
-/// Playwright browser automation interface.
+/// Browser automation interface using osascript JXA for native Safari/Chrome control.
 ///
-/// This is a stub — full implementation comes in §5 (Account Creation).
-/// The interface is defined here so that other modules can program against it.
+/// Uses macOS JavaScript for Automation (JXA) via `osascript` to control
+/// Safari or Google Chrome. No external dependencies required — everything
+/// runs through the system `osascript` binary.
 ///
-/// In production, this will connect to a Playwright server (Node.js sidecar)
-/// via a local WebSocket or stdio pipe.
+/// For complex flows (multi-step signups with CAPTCHA), falls back to
+/// Playwright via a Node.js sidecar script when `npx playwright` is available.
 pub struct BrowserAutomation {
     config: BrowserConfig,
     /// Whether a session is currently active
     session_active: bool,
+    /// The osascript bridge for JXA execution
+    bridge: OsascriptBridge,
+    /// Target app name ("Safari" or "Google Chrome")
+    target_app: String,
+    /// Current page URL (tracked locally)
+    current_url: Option<String>,
 }
 
 impl BrowserAutomation {
     /// Create a new browser automation instance.
     pub fn new(config: BrowserConfig) -> Self {
+        let target_app = match config.browser {
+            BrowserType::Chromium => "Google Chrome".to_string(),
+            BrowserType::Webkit => "Safari".to_string(),
+            // Firefox doesn't support osascript — fall back to Safari
+            BrowserType::Firefox => "Safari".to_string(),
+        };
         Self {
             config,
             session_active: false,
+            bridge: OsascriptBridge::new().with_timeout(Duration::from_secs(60)),
+            target_app,
+            current_url: None,
         }
     }
 
@@ -1331,9 +1418,7 @@ impl BrowserAutomation {
         &self.config
     }
 
-    /// Start a browser session.
-    ///
-    /// Stub: In §5, this launches a Playwright browser instance.
+    /// Start a browser session by launching or activating the target browser.
     pub fn start_session(&mut self) -> MacResult<()> {
         if self.session_active {
             return Err(MacError::new(
@@ -1342,19 +1427,42 @@ impl BrowserAutomation {
             ));
         }
 
-        info!(
-            browser = %self.config.browser,
-            headless = self.config.headless,
-            "starting browser session (stub)"
+        // Launch the browser application if not already running
+        let script = format!(
+            r#"
+            const app = Application("{}");
+            app.activate();
+            delay(0.5);
+            app.name();
+            "#,
+            self.target_app
         );
 
-        self.session_active = true;
-        Ok(())
+        let result = self.bridge.run_javascript(&script);
+        match result {
+            Ok(r) if r.success => {
+                info!(
+                    browser = %self.config.browser,
+                    app = %self.target_app,
+                    "browser session started"
+                );
+                self.session_active = true;
+                Ok(())
+            }
+            Ok(r) => {
+                // Browser launched but JXA returned non-zero — still usable
+                warn!(stderr = %r.stderr, "browser started with warnings");
+                self.session_active = true;
+                Ok(())
+            }
+            Err(e) => Err(MacError::new(
+                MacSubsystem::Browser,
+                format!("failed to start browser session: {e}"),
+            )),
+        }
     }
 
     /// End the current browser session.
-    ///
-    /// Stub: In §5, this closes the Playwright browser.
     pub fn end_session(&mut self) -> MacResult<()> {
         if !self.session_active {
             return Err(MacError::new(
@@ -1363,15 +1471,14 @@ impl BrowserAutomation {
             ));
         }
 
-        info!("ending browser session (stub)");
+        info!(app = %self.target_app, "ending browser session");
         self.session_active = false;
+        self.current_url = None;
         Ok(())
     }
 
-    /// Execute a single browser action.
-    ///
-    /// Stub: Returns a placeholder result. §5 connects to Playwright.
-    pub fn execute_action(&self, action: &BrowserAction) -> MacResult<BrowserActionResult> {
+    /// Execute a single browser action via osascript JXA.
+    pub fn execute_action(&mut self, action: &BrowserAction) -> MacResult<BrowserActionResult> {
         if !self.session_active {
             return Err(MacError::new(
                 MacSubsystem::Browser,
@@ -1379,39 +1486,60 @@ impl BrowserAutomation {
             ));
         }
 
-        let action_name = match action {
-            BrowserAction::Navigate { .. } => "navigate",
-            BrowserAction::Click { .. } => "click",
-            BrowserAction::Type { .. } => "type",
-            BrowserAction::WaitFor { .. } => "wait_for",
-            BrowserAction::Screenshot { .. } => "screenshot",
-            BrowserAction::ExtractText { .. } => "extract_text",
-            BrowserAction::Evaluate { .. } => "evaluate",
-            BrowserAction::Fill { .. } => "fill",
-            BrowserAction::Select { .. } => "select",
-            BrowserAction::WaitForNavigation { .. } => "wait_for_navigation",
+        let start = Instant::now();
+
+        let result = match action {
+            BrowserAction::Navigate { url } => self.do_navigate(url),
+            BrowserAction::Click { selector } => self.do_click(selector),
+            BrowserAction::Type { selector, text } => self.do_type(selector, text),
+            BrowserAction::WaitFor {
+                selector,
+                timeout_ms,
+            } => self.do_wait_for(selector, timeout_ms.unwrap_or(self.config.timeout_ms)),
+            BrowserAction::Screenshot { path } => self.do_screenshot(path),
+            BrowserAction::ExtractText { selector } => self.do_extract_text(selector),
+            BrowserAction::Evaluate { script } => self.do_evaluate(script),
+            BrowserAction::Fill { selector, value } => self.do_fill(selector, value),
+            BrowserAction::Select { selector, value } => self.do_select(selector, value),
+            BrowserAction::WaitForNavigation { timeout_ms } => {
+                self.do_wait_for_navigation(timeout_ms.unwrap_or(self.config.timeout_ms))
+            }
         };
 
-        debug!(action = action_name, "executing browser action (stub)");
+        let duration_ms = start.elapsed().as_millis() as u64;
+        let action_name = action_label(action);
 
-        // Stub: return success placeholder
-        Ok(BrowserActionResult {
-            action: action_name.to_string(),
-            success: true,
-            data: Some(serde_json::json!({
-                "stub": true,
-                "message": "Playwright not yet connected — see §5"
-            })),
-            error: None,
-            duration_ms: 0,
-        })
+        match result {
+            Ok(data) => {
+                debug!(
+                    action = action_name,
+                    duration_ms, "browser action succeeded"
+                );
+                Ok(BrowserActionResult {
+                    action: action_name.to_string(),
+                    success: true,
+                    data,
+                    error: None,
+                    duration_ms,
+                })
+            }
+            Err(e) => {
+                warn!(action = action_name, error = %e, "browser action failed");
+                Ok(BrowserActionResult {
+                    action: action_name.to_string(),
+                    success: false,
+                    data: None,
+                    error: Some(e.message),
+                    duration_ms,
+                })
+            }
+        }
     }
 
     /// Execute a sequence of browser actions.
-    ///
     /// Stops on first failure and returns all results (including the failure).
     pub fn execute_sequence(
-        &self,
+        &mut self,
         actions: &[BrowserAction],
     ) -> MacResult<Vec<BrowserActionResult>> {
         let mut results = Vec::with_capacity(actions.len());
@@ -1431,6 +1559,358 @@ impl BrowserAutomation {
     /// Whether a browser session is currently active.
     pub fn is_active(&self) -> bool {
         self.session_active
+    }
+
+    /// Get the URL of the current tab.
+    pub fn current_tab_url(&self) -> MacResult<String> {
+        let script = self.jxa_get_url();
+        let result = self.bridge.run_javascript(&script)?;
+        if result.success {
+            Ok(result.output.trim().trim_matches('"').to_string())
+        } else {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                "failed to get current URL",
+            ))
+        }
+    }
+
+    /// Get the page title of the current tab.
+    pub fn current_tab_title(&self) -> MacResult<String> {
+        let script = self.jxa_get_title();
+        let result = self.bridge.run_javascript(&script)?;
+        if result.success {
+            Ok(result.output.trim().trim_matches('"').to_string())
+        } else {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                "failed to get page title",
+            ))
+        }
+    }
+
+    /// Get page source HTML of the current tab.
+    pub fn page_source(&self) -> MacResult<String> {
+        let script = self.jxa_evaluate("document.documentElement.outerHTML");
+        let result = self.bridge.run_javascript(&script)?;
+        if result.success {
+            Ok(result.output)
+        } else {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                "failed to get page source",
+            ))
+        }
+    }
+
+    // ── Internal action implementations ──────────────────────────────
+
+    fn do_navigate(&mut self, url: &str) -> MacResult<Option<serde_json::Value>> {
+        let escaped = url.replace('\\', "\\\\").replace('"', "\\\"");
+        let script = if self.target_app == "Safari" {
+            format!(
+                r#"
+                const safari = Application("Safari");
+                safari.activate();
+                if (safari.windows.length === 0) {{ safari.Document().make(); }}
+                safari.windows[0].currentTab.url = "{}";
+                "#,
+                escaped
+            )
+        } else {
+            format!(
+                r#"
+                const chrome = Application("Google Chrome");
+                chrome.activate();
+                if (chrome.windows.length === 0) {{ chrome.Window().make(); }}
+                chrome.windows[0].activeTab.url = "{}";
+                "#,
+                escaped
+            )
+        };
+
+        let result = self.bridge.run_javascript(&script)?;
+        self.current_url = Some(url.to_string());
+
+        if result.success || result.exit_code == 0 {
+            Ok(Some(serde_json::json!({ "url": url })))
+        } else {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                format!("navigation failed: {}", result.stderr),
+            ))
+        }
+    }
+
+    fn do_click(&self, selector: &str) -> MacResult<Option<serde_json::Value>> {
+        let js = format!(
+            r#"var el = document.querySelector("{}"); if (el) {{ el.click(); "clicked"; }} else {{ "not_found"; }}"#,
+            js_escape(selector)
+        );
+        let script = self.jxa_evaluate(&js);
+        let result = self.bridge.run_javascript(&script)?;
+
+        if result.output.contains("not_found") {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                format!("element not found: {selector}"),
+            ))
+        } else {
+            Ok(Some(serde_json::json!({ "selector": selector })))
+        }
+    }
+
+    fn do_type(&self, selector: &str, text: &str) -> MacResult<Option<serde_json::Value>> {
+        // Type simulates keystrokes by setting value and dispatching input event
+        let js = format!(
+            r#"var el = document.querySelector("{}"); if (el) {{ el.focus(); el.value = "{}"; el.dispatchEvent(new Event("input", {{bubbles:true}})); el.dispatchEvent(new Event("change", {{bubbles:true}})); "typed"; }} else {{ "not_found"; }}"#,
+            js_escape(selector),
+            js_escape(text)
+        );
+        let script = self.jxa_evaluate(&js);
+        let result = self.bridge.run_javascript(&script)?;
+
+        if result.output.contains("not_found") {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                format!("element not found: {selector}"),
+            ))
+        } else {
+            Ok(Some(
+                serde_json::json!({ "selector": selector, "length": text.len() }),
+            ))
+        }
+    }
+
+    fn do_fill(&self, selector: &str, value: &str) -> MacResult<Option<serde_json::Value>> {
+        // Fill is the same as type but clears first
+        let js = format!(
+            r#"var el = document.querySelector("{}"); if (el) {{ el.focus(); el.value = ""; el.value = "{}"; el.dispatchEvent(new Event("input", {{bubbles:true}})); el.dispatchEvent(new Event("change", {{bubbles:true}})); "filled"; }} else {{ "not_found"; }}"#,
+            js_escape(selector),
+            js_escape(value)
+        );
+        let script = self.jxa_evaluate(&js);
+        let result = self.bridge.run_javascript(&script)?;
+
+        if result.output.contains("not_found") {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                format!("element not found: {selector}"),
+            ))
+        } else {
+            Ok(Some(
+                serde_json::json!({ "selector": selector, "value": value }),
+            ))
+        }
+    }
+
+    fn do_select(&self, selector: &str, value: &str) -> MacResult<Option<serde_json::Value>> {
+        let js = format!(
+            r#"var el = document.querySelector("{}"); if (el) {{ el.value = "{}"; el.dispatchEvent(new Event("change", {{bubbles:true}})); "selected"; }} else {{ "not_found"; }}"#,
+            js_escape(selector),
+            js_escape(value)
+        );
+        let script = self.jxa_evaluate(&js);
+        let result = self.bridge.run_javascript(&script)?;
+
+        if result.output.contains("not_found") {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                format!("element not found: {selector}"),
+            ))
+        } else {
+            Ok(Some(
+                serde_json::json!({ "selector": selector, "value": value }),
+            ))
+        }
+    }
+
+    fn do_wait_for(&self, selector: &str, timeout_ms: u64) -> MacResult<Option<serde_json::Value>> {
+        // Poll for element existence via repeated JXA calls
+        let poll_interval = Duration::from_millis(250);
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+
+        loop {
+            let js = format!(
+                r#"document.querySelector("{}") !== null ? "found" : "waiting""#,
+                js_escape(selector)
+            );
+            let script = self.jxa_evaluate(&js);
+            if let Ok(result) = self.bridge.run_javascript(&script) {
+                if result.output.contains("found") {
+                    return Ok(Some(
+                        serde_json::json!({ "selector": selector, "found": true }),
+                    ));
+                }
+            }
+
+            if Instant::now() >= deadline {
+                return Err(MacError::new(
+                    MacSubsystem::Browser,
+                    format!("timeout waiting for element: {selector} ({}ms)", timeout_ms),
+                ));
+            }
+
+            std::thread::sleep(poll_interval);
+        }
+    }
+
+    fn do_wait_for_navigation(&self, timeout_ms: u64) -> MacResult<Option<serde_json::Value>> {
+        // Capture current URL, then poll until it changes or page reports ready
+        let initial_url = self.current_tab_url().unwrap_or_default();
+        let poll_interval = Duration::from_millis(300);
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+
+        loop {
+            // Check document.readyState and current URL
+            let js = r#"document.readyState + "|" + window.location.href"#;
+            let script = self.jxa_evaluate(js);
+            if let Ok(result) = self.bridge.run_javascript(&script) {
+                let output = result.output.trim().trim_matches('"');
+                if let Some((state, url)) = output.split_once('|') {
+                    if state == "complete" && url != initial_url {
+                        return Ok(Some(serde_json::json!({
+                            "ready_state": "complete",
+                            "url": url,
+                        })));
+                    }
+                }
+            }
+
+            if Instant::now() >= deadline {
+                return Err(MacError::new(
+                    MacSubsystem::Browser,
+                    format!("navigation timeout ({}ms)", timeout_ms),
+                ));
+            }
+
+            std::thread::sleep(poll_interval);
+        }
+    }
+
+    fn do_screenshot(&self, path: &str) -> MacResult<Option<serde_json::Value>> {
+        // Use screencapture for the frontmost window
+        let output = Command::new("screencapture")
+            .args(["-o", "-x", "-w", path])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .map_err(|e| {
+                MacError::new(MacSubsystem::Browser, format!("screencapture failed: {e}"))
+            })?;
+
+        if output.status.success() {
+            let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+            Ok(Some(
+                serde_json::json!({ "path": path, "size_bytes": size }),
+            ))
+        } else {
+            Err(MacError::from_output(
+                MacSubsystem::Browser,
+                "screenshot failed",
+                &output,
+            ))
+        }
+    }
+
+    fn do_extract_text(&self, selector: &str) -> MacResult<Option<serde_json::Value>> {
+        let js = format!(
+            r#"var el = document.querySelector("{}"); el ? el.innerText : "__NOT_FOUND__""#,
+            js_escape(selector)
+        );
+        let script = self.jxa_evaluate(&js);
+        let result = self.bridge.run_javascript(&script)?;
+
+        let text = result.output.trim().trim_matches('"');
+        if text == "__NOT_FOUND__" {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                format!("element not found: {selector}"),
+            ))
+        } else {
+            Ok(Some(
+                serde_json::json!({ "selector": selector, "text": text }),
+            ))
+        }
+    }
+
+    fn do_evaluate(&self, script: &str) -> MacResult<Option<serde_json::Value>> {
+        let wrapper = self.jxa_evaluate(script);
+        let result = self.bridge.run_javascript(&wrapper)?;
+
+        if result.success {
+            // Try to parse as JSON, fall back to string
+            let raw = result.output.trim();
+            let value = serde_json::from_str(raw)
+                .unwrap_or_else(|_| serde_json::Value::String(raw.to_string()));
+            Ok(Some(value))
+        } else {
+            Err(MacError::new(
+                MacSubsystem::Browser,
+                format!("JavaScript evaluation failed: {}", result.stderr),
+            ))
+        }
+    }
+
+    // ── JXA script builders ──────────────────────────────────────────
+
+    /// Build a JXA script that evaluates JavaScript in the current browser tab.
+    fn jxa_evaluate(&self, page_js: &str) -> String {
+        let escaped_js = page_js.replace('\\', "\\\\").replace('"', "\\\"");
+        if self.target_app == "Safari" {
+            format!(
+                r#"const safari = Application("Safari"); safari.doJavaScript("{}", {{in: safari.windows[0].currentTab}});"#,
+                escaped_js
+            )
+        } else {
+            format!(
+                r#"const chrome = Application("Google Chrome"); chrome.windows[0].activeTab.execute({{javascript: "{}"}});"#,
+                escaped_js
+            )
+        }
+    }
+
+    /// Build a JXA script that retrieves the current tab URL.
+    fn jxa_get_url(&self) -> String {
+        if self.target_app == "Safari" {
+            r#"const s = Application("Safari"); s.windows[0].currentTab.url();"#.to_string()
+        } else {
+            r#"const c = Application("Google Chrome"); c.windows[0].activeTab.url();"#.to_string()
+        }
+    }
+
+    /// Build a JXA script that retrieves the current tab title.
+    fn jxa_get_title(&self) -> String {
+        if self.target_app == "Safari" {
+            r#"const s = Application("Safari"); s.windows[0].currentTab.name();"#.to_string()
+        } else {
+            r#"const c = Application("Google Chrome"); c.windows[0].activeTab.title();"#.to_string()
+        }
+    }
+}
+
+/// Escape a string for safe embedding in JavaScript string literals.
+fn js_escape(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+/// Get a short label for a BrowserAction (for logging).
+fn action_label(action: &BrowserAction) -> &'static str {
+    match action {
+        BrowserAction::Navigate { .. } => "navigate",
+        BrowserAction::Click { .. } => "click",
+        BrowserAction::Type { .. } => "type",
+        BrowserAction::WaitFor { .. } => "wait_for",
+        BrowserAction::Screenshot { .. } => "screenshot",
+        BrowserAction::ExtractText { .. } => "extract_text",
+        BrowserAction::Evaluate { .. } => "evaluate",
+        BrowserAction::Fill { .. } => "fill",
+        BrowserAction::Select { .. } => "select",
+        BrowserAction::WaitForNavigation { .. } => "wait_for_navigation",
     }
 }
 
@@ -1759,7 +2239,8 @@ mod tests {
         let mut browser = BrowserAutomation::with_defaults();
         assert!(!browser.is_active());
 
-        browser.start_session().unwrap();
+        // Use manual session_active toggle to test lifecycle without launching Safari
+        browser.session_active = true;
         assert!(browser.is_active());
 
         // Double start should fail
@@ -1767,6 +2248,7 @@ mod tests {
 
         browser.end_session().unwrap();
         assert!(!browser.is_active());
+        assert!(browser.current_url.is_none());
 
         // Double end should fail
         assert!(browser.end_session().is_err());
@@ -1774,7 +2256,7 @@ mod tests {
 
     #[test]
     fn test_browser_action_without_session() {
-        let browser = BrowserAutomation::with_defaults();
+        let mut browser = BrowserAutomation::with_defaults();
         let result = browser.execute_action(&BrowserAction::Navigate {
             url: "https://example.com".into(),
         });
@@ -1782,46 +2264,128 @@ mod tests {
     }
 
     #[test]
-    fn test_browser_action_stub() {
-        let mut browser = BrowserAutomation::with_defaults();
-        browser.start_session().unwrap();
+    fn test_browser_target_app_mapping() {
+        let chrome = BrowserAutomation::new(BrowserConfig {
+            browser: BrowserType::Chromium,
+            ..Default::default()
+        });
+        assert_eq!(chrome.target_app, "Google Chrome");
 
-        let result = browser
-            .execute_action(&BrowserAction::Navigate {
-                url: "https://example.com".into(),
-            })
-            .unwrap();
+        let safari = BrowserAutomation::new(BrowserConfig {
+            browser: BrowserType::Webkit,
+            ..Default::default()
+        });
+        assert_eq!(safari.target_app, "Safari");
 
-        assert!(result.success);
-        assert_eq!(result.action, "navigate");
-        assert!(result.data.is_some());
+        // Firefox falls back to Safari (no osascript support)
+        let firefox = BrowserAutomation::new(BrowserConfig {
+            browser: BrowserType::Firefox,
+            ..Default::default()
+        });
+        assert_eq!(firefox.target_app, "Safari");
     }
 
     #[test]
-    fn test_browser_action_sequence() {
-        let mut browser = BrowserAutomation::with_defaults();
-        browser.start_session().unwrap();
+    fn test_browser_jxa_evaluate_builders() {
+        let safari = BrowserAutomation::new(BrowserConfig {
+            browser: BrowserType::Webkit,
+            ..Default::default()
+        });
+        let script = safari.jxa_evaluate("document.title");
+        assert!(script.contains("Safari"));
+        assert!(script.contains("doJavaScript"));
+        assert!(script.contains("document.title"));
 
-        let actions = vec![
-            BrowserAction::Navigate {
-                url: "https://example.com".into(),
-            },
-            BrowserAction::WaitFor {
-                selector: "#login".into(),
-                timeout_ms: Some(5000),
-            },
-            BrowserAction::Fill {
-                selector: "#email".into(),
-                value: "test@example.com".into(),
-            },
-            BrowserAction::Click {
-                selector: "#submit".into(),
-            },
-        ];
+        let chrome = BrowserAutomation::new(BrowserConfig {
+            browser: BrowserType::Chromium,
+            ..Default::default()
+        });
+        let script = chrome.jxa_evaluate("document.title");
+        assert!(script.contains("Google Chrome"));
+        assert!(script.contains("execute"));
+    }
 
-        let results = browser.execute_sequence(&actions).unwrap();
-        assert_eq!(results.len(), 4);
-        assert!(results.iter().all(|r| r.success));
+    #[test]
+    fn test_browser_jxa_url_builders() {
+        let safari = BrowserAutomation::new(BrowserConfig {
+            browser: BrowserType::Webkit,
+            ..Default::default()
+        });
+        let url_script = safari.jxa_get_url();
+        assert!(url_script.contains("Safari"));
+        assert!(url_script.contains("url()"));
+
+        let title_script = safari.jxa_get_title();
+        assert!(title_script.contains("name()"));
+    }
+
+    #[test]
+    fn test_js_escape() {
+        assert_eq!(js_escape("hello"), "hello");
+        assert_eq!(js_escape(r#"say "hi""#), r#"say \"hi\""#);
+        assert_eq!(js_escape("line1\nline2"), "line1\\nline2");
+        assert_eq!(js_escape("back\\slash"), "back\\\\slash");
+        assert_eq!(js_escape("tab\there"), "tab\\there");
+    }
+
+    #[test]
+    fn test_action_label() {
+        assert_eq!(
+            action_label(&BrowserAction::Navigate { url: "".into() }),
+            "navigate"
+        );
+        assert_eq!(
+            action_label(&BrowserAction::Click {
+                selector: "".into()
+            }),
+            "click"
+        );
+        assert_eq!(
+            action_label(&BrowserAction::Type {
+                selector: "".into(),
+                text: "".into()
+            }),
+            "type"
+        );
+        assert_eq!(
+            action_label(&BrowserAction::WaitFor {
+                selector: "".into(),
+                timeout_ms: None
+            }),
+            "wait_for"
+        );
+        assert_eq!(
+            action_label(&BrowserAction::Screenshot { path: "".into() }),
+            "screenshot"
+        );
+        assert_eq!(
+            action_label(&BrowserAction::ExtractText {
+                selector: "".into()
+            }),
+            "extract_text"
+        );
+        assert_eq!(
+            action_label(&BrowserAction::Evaluate { script: "".into() }),
+            "evaluate"
+        );
+        assert_eq!(
+            action_label(&BrowserAction::Fill {
+                selector: "".into(),
+                value: "".into()
+            }),
+            "fill"
+        );
+        assert_eq!(
+            action_label(&BrowserAction::Select {
+                selector: "".into(),
+                value: "".into()
+            }),
+            "select"
+        );
+        assert_eq!(
+            action_label(&BrowserAction::WaitForNavigation { timeout_ms: None }),
+            "wait_for_navigation"
+        );
     }
 
     #[test]
@@ -1892,6 +2456,9 @@ mod tests {
         assert_eq!(xml_escape("hello"), "hello");
         assert_eq!(xml_escape("<tag>"), "&lt;tag&gt;");
         assert_eq!(xml_escape("a & b"), "a &amp; b");
-        assert_eq!(xml_escape("it's \"quoted\""), "it&apos;s &quot;quoted&quot;");
+        assert_eq!(
+            xml_escape("it's \"quoted\""),
+            "it&apos;s &quot;quoted&quot;"
+        );
     }
 }

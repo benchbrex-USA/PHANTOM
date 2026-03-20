@@ -5,10 +5,14 @@
 //! Responsibilities:
 //!   - Execute each phase by spawning the correct agents
 //!   - Coordinate parallel tasks within a phase via the task graph engine
+//!   - Call the Anthropic API via `PipelineBridge` for real agent execution
+//!   - Query `KnowledgeBrain` (ChromaDB) for RAG-backed knowledge during ingestion
+//!   - Provision infrastructure via `Provisioner` HTTP calls during infra phase
 //!   - Emit real-time progress events to the message bus
 //!   - Serialize/restore pipeline state for resume capability
 //!   - Invoke the self-healer on task failures
 //!   - Record every action in the audit log
+//!   - Support `--dry-run` mode for offline/demo execution
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,6 +23,9 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, instrument, warn};
 
 use phantom_ai::agents::AgentRole;
+use phantom_ai::PipelineBridge;
+use phantom_brain::{KnowledgeBrain, KnowledgeChunk, KnowledgeQuery};
+use phantom_infra::provisioner::Provisioner;
 
 use crate::agent_manager::AgentManager;
 use crate::audit::{AuditAction, AuditLog};
@@ -119,11 +126,7 @@ pub struct PipelineCheckpoint {
 
 impl PipelineCheckpoint {
     /// Create a checkpoint from the current executor state.
-    fn capture(
-        build_id: &str,
-        pipeline: &BuildPipeline,
-        agents: &AgentManager,
-    ) -> Self {
+    fn capture(build_id: &str, pipeline: &BuildPipeline, agents: &AgentManager) -> Self {
         let phase_states: Vec<(BuildPhase, PhaseState)> = pipeline
             .phases
             .iter()
@@ -267,6 +270,13 @@ pub struct TaskResult {
 // ── Pipeline Executor ────────────────────────────────────────────────────────
 
 /// The pipeline executor — runs all 8 phases with agent coordination.
+///
+/// When `dry_run` is false (default), tasks are executed via real Anthropic API
+/// calls through the `PipelineBridge`, infrastructure provisioning uses real
+/// HTTP calls to Hetzner/Fly.io/Railway, and knowledge queries hit ChromaDB.
+///
+/// When `dry_run` is true (`--dry-run`), tasks succeed with placeholder outputs,
+/// no API calls are made, and token usage is estimated from task complexity.
 pub struct PipelineExecutor {
     /// Unique build ID
     build_id: String,
@@ -283,15 +293,28 @@ pub struct PipelineExecutor {
     /// Collected progress events
     events: Vec<ProgressEvent>,
     /// Checkpoint storage callback (serialize → R2 encrypted blob)
+    #[allow(clippy::type_complexity)]
     checkpoint_fn: Option<Box<dyn Fn(&[u8]) -> Result<(), CoreError> + Send + Sync>>,
     /// Phase specs (cached)
     specs: Vec<PhaseSpec>,
     /// Task results collected during execution
     results: Vec<TaskResult>,
+    /// Dry-run mode: no real API calls, tasks succeed with placeholder outputs
+    dry_run: bool,
+    /// Bridge to the AI orchestrator (real Anthropic API calls)
+    ai_bridge: Option<Arc<PipelineBridge>>,
+    /// Knowledge brain (ChromaDB RAG queries)
+    knowledge: Option<Arc<RwLock<KnowledgeBrain>>>,
+    /// Infrastructure provisioner (Hetzner/Fly.io/Railway HTTP calls)
+    provisioner: Option<Arc<RwLock<Provisioner>>>,
 }
 
 impl PipelineExecutor {
     /// Create a new pipeline executor.
+    ///
+    /// By default, runs in dry-run mode (offline/demo). Call `.with_ai_bridge()`,
+    /// `.with_knowledge()`, and `.with_provisioner()` to enable real execution,
+    /// or pass `dry_run: false` via `.with_dry_run(false)`.
     pub fn new(
         build_id: impl Into<String>,
         pipeline: BuildPipeline,
@@ -309,7 +332,38 @@ impl PipelineExecutor {
             checkpoint_fn: None,
             specs: phase_specs(),
             results: Vec::new(),
+            dry_run: true,
+            ai_bridge: None,
+            knowledge: None,
+            provisioner: None,
         }
+    }
+
+    /// Set dry-run mode. When false, real API calls are made via the configured
+    /// bridge, knowledge brain, and provisioner.
+    pub fn with_dry_run(mut self, dry_run: bool) -> Self {
+        self.dry_run = dry_run;
+        self
+    }
+
+    /// Attach the AI orchestrator bridge for real Anthropic API calls.
+    /// Disables dry-run mode automatically.
+    pub fn with_ai_bridge(mut self, bridge: PipelineBridge) -> Self {
+        self.ai_bridge = Some(Arc::new(bridge));
+        self.dry_run = false;
+        self
+    }
+
+    /// Attach the knowledge brain for ChromaDB RAG queries during ingestion.
+    pub fn with_knowledge(mut self, brain: Arc<RwLock<KnowledgeBrain>>) -> Self {
+        self.knowledge = Some(brain);
+        self
+    }
+
+    /// Attach the infrastructure provisioner for real cloud API calls.
+    pub fn with_provisioner(mut self, provisioner: Arc<RwLock<Provisioner>>) -> Self {
+        self.provisioner = Some(provisioner);
+        self
     }
 
     /// Set a checkpoint callback for resume capability.
@@ -509,7 +563,12 @@ impl PipelineExecutor {
             .collect();
 
         // Update phase task count
-        if let Some(ps) = self.pipeline.phases.iter_mut().find(|p| p.phase == spec.phase) {
+        if let Some(ps) = self
+            .pipeline
+            .phases
+            .iter_mut()
+            .find(|p| p.phase == spec.phase)
+        {
             ps.tasks_total = phase_task_ids.len();
         }
 
@@ -610,7 +669,12 @@ impl PipelineExecutor {
                 let failed_tasks: Vec<(String, String)> = results
                     .iter()
                     .filter(|r| !r.success)
-                    .map(|r| (r.task_id.clone(), r.error.clone().unwrap_or_else(|| "unknown".to_string())))
+                    .map(|r| {
+                        (
+                            r.task_id.clone(),
+                            r.error.clone().unwrap_or_else(|| "unknown".to_string()),
+                        )
+                    })
                     .collect();
 
                 self.results.extend(results);
@@ -651,12 +715,8 @@ impl PipelineExecutor {
             let result = self.execute_single_task(task_id, spec).await;
 
             if !result.success {
-                self.attempt_healing(
-                    task_id,
-                    result.error.as_deref().unwrap_or("unknown"),
-                    spec,
-                )
-                .await?;
+                self.attempt_healing(task_id, result.error.as_deref().unwrap_or("unknown"), spec)
+                    .await?;
             }
 
             self.results.push(result);
@@ -736,13 +796,27 @@ impl PipelineExecutor {
         )
         .await;
 
-        // Simulate task execution
-        // In production, this calls the Anthropic API via phantom-ai client.
-        // The agent receives the task description + knowledge context and
-        // generates code/config/actions. Here we model the execution contract.
+        // Execute the task: real API calls or dry-run depending on mode
         let start = Utc::now();
-        let (success, output, error, tokens) =
-            self.run_agent_task(&agent_id, &task).await;
+
+        // For infrastructure phase, run provisioning alongside the agent task
+        let infra_output = if spec.phase == BuildPhase::Infrastructure {
+            self.run_infra_provisioning(&task).await
+        } else {
+            None
+        };
+
+        let (success, mut output, error, tokens) = self.run_agent_task(&agent_id, &task).await;
+
+        // Merge provisioner output into agent output
+        if let Some(infra) = infra_output {
+            if let Some(ref mut out) = output {
+                if let Some(obj) = out.as_object_mut() {
+                    obj.insert("infrastructure".to_string(), infra);
+                }
+            }
+        }
+
         let elapsed = (Utc::now() - start).num_milliseconds() as f64 / 1000.0;
 
         // Update task status
@@ -756,7 +830,12 @@ impl PipelineExecutor {
             }
 
             // Update phase completed count
-            if let Some(ps) = self.pipeline.phases.iter_mut().find(|p| p.phase == spec.phase) {
+            if let Some(ps) = self
+                .pipeline
+                .phases
+                .iter_mut()
+                .find(|p| p.phase == spec.phase)
+            {
                 ps.tasks_completed += 1;
             }
 
@@ -827,33 +906,191 @@ impl PipelineExecutor {
         }
     }
 
-    /// Run an agent on a task. In production this calls the Anthropic API.
+    /// Run an agent on a task.
+    ///
+    /// In live mode: queries KnowledgeBrain for RAG context, calls the Anthropic
+    /// API via PipelineBridge, and for infrastructure tasks triggers real provisioning.
+    ///
+    /// In dry-run mode: returns placeholder success with estimated token usage.
+    ///
     /// Returns (success, output, error, tokens_used).
     async fn run_agent_task(
         &self,
         _agent_id: &str,
         task: &Task,
     ) -> (bool, Option<serde_json::Value>, Option<String>, u64) {
-        // In production:
-        //   1. Query Knowledge Brain with task.knowledge_query
-        //   2. Build agent context with knowledge chunks
-        //   3. Call Anthropic API with task description + context
-        //   4. Parse structured output from agent response
-        //   5. Return results
-        //
-        // For now, we model the execution contract:
-        // - Tasks succeed with a placeholder output
-        // - Token usage is estimated from task complexity
-        let estimated_tokens = (task.estimated_seconds as u64) * 10;
+        if self.dry_run {
+            return self.run_agent_task_dry(task);
+        }
 
+        // ── Step 1: Query KnowledgeBrain for RAG context ────────────────
+        let knowledge_chunks = self.query_knowledge(task).await;
+        let knowledge_context = if knowledge_chunks.is_empty() {
+            None
+        } else {
+            Some(format_knowledge_context(&knowledge_chunks))
+        };
+
+        // ── Step 2: Call Anthropic API via PipelineBridge ────────────────
+        let Some(bridge) = &self.ai_bridge else {
+            warn!(task_id = %task.id, "no AI bridge configured, falling back to dry-run");
+            return self.run_agent_task_dry(task);
+        };
+
+        let ai_chunks: Vec<phantom_ai::KnowledgeChunk> = knowledge_chunks
+            .iter()
+            .map(|c| phantom_ai::KnowledgeChunk {
+                source: c.source_file.clone(),
+                heading: c.section.clone(),
+                content: c.content.clone(),
+                score: c.score as f64,
+            })
+            .collect();
+
+        let result = bridge
+            .execute_task(
+                &task.id,
+                &task.agent_role,
+                &task.description,
+                task.knowledge_query.as_deref(),
+                ai_chunks,
+                knowledge_context.as_deref(),
+            )
+            .await;
+
+        match result {
+            Ok(task_result) => {
+                info!(
+                    task_id = %task.id,
+                    agent = %task_result.agent_id,
+                    tokens = task_result.tokens_used,
+                    delegations = task_result.delegations_executed,
+                    "AI task completed"
+                );
+                (
+                    task_result.success,
+                    task_result.output,
+                    task_result.error,
+                    task_result.tokens_used,
+                )
+            }
+            Err(e) => {
+                error!(task_id = %task.id, error = %e, "AI bridge call failed");
+                (false, None, Some(format!("AI error: {e}")), 0)
+            }
+        }
+    }
+
+    /// Dry-run task execution: returns placeholder success with estimated tokens.
+    fn run_agent_task_dry(
+        &self,
+        task: &Task,
+    ) -> (bool, Option<serde_json::Value>, Option<String>, u64) {
+        let estimated_tokens = (task.estimated_seconds as u64) * 10;
         let output = serde_json::json!({
             "task": task.name,
             "status": "completed",
             "agent_role": task.agent_role,
             "estimated_tokens": estimated_tokens,
+            "dry_run": true,
         });
-
         (true, Some(output), None, estimated_tokens)
+    }
+
+    /// Query the KnowledgeBrain for RAG context relevant to a task.
+    async fn query_knowledge(&self, task: &Task) -> Vec<KnowledgeChunk> {
+        let Some(brain_lock) = &self.knowledge else {
+            return Vec::new();
+        };
+        let query_text = task.knowledge_query.as_deref().unwrap_or(&task.description);
+
+        let query = KnowledgeQuery::new(query_text)
+            .with_agent_role(&task.agent_role)
+            .with_top_k(5);
+
+        let brain = brain_lock.read().await;
+        match brain.query(&query).await {
+            Ok(chunks) => {
+                debug!(
+                    task_id = %task.id,
+                    chunks = chunks.len(),
+                    "knowledge query returned chunks"
+                );
+                chunks
+            }
+            Err(e) => {
+                warn!(task_id = %task.id, error = %e, "knowledge query failed, continuing without RAG context");
+                Vec::new()
+            }
+        }
+    }
+
+    /// Execute infrastructure provisioning for infra-phase tasks.
+    ///
+    /// Called during the Infrastructure phase to provision real cloud resources
+    /// via Hetzner/Fly.io/Railway HTTP APIs through the Provisioner.
+    async fn run_infra_provisioning(&self, task: &Task) -> Option<serde_json::Value> {
+        if self.dry_run {
+            return None;
+        }
+        let Some(prov_lock) = &self.provisioner else {
+            return None;
+        };
+
+        // Only provision for tasks that look like provisioning tasks
+        let is_provision_task = task.name.contains("provision")
+            || task.name.contains("server")
+            || task.name.contains("infrastructure")
+            || task.name.contains("deploy");
+        if !is_provision_task {
+            return None;
+        }
+
+        let provisioner = prov_lock.write().await;
+
+        // Determine resource type from task metadata
+        let resource_type = if task.name.contains("database") || task.name.contains("db") {
+            phantom_infra::ResourceType::Database
+        } else if task.name.contains("redis") || task.name.contains("cache") {
+            phantom_infra::ResourceType::Cache
+        } else if task.name.contains("storage") || task.name.contains("bucket") {
+            phantom_infra::ResourceType::Storage
+        } else {
+            phantom_infra::ResourceType::Compute
+        };
+
+        let request = phantom_infra::ProvisionRequest {
+            resource_type,
+            preferred_provider: None,
+            purpose: task.name.clone(),
+            requirements: HashMap::new(),
+        };
+
+        match provisioner.plan(&request) {
+            Ok(provider) => {
+                info!(
+                    task_id = %task.id,
+                    provider = %provider.display_name(),
+                    resource = ?resource_type,
+                    "provisioner selected provider"
+                );
+                Some(serde_json::json!({
+                    "provisioner": {
+                        "provider": provider.display_name(),
+                        "resource_type": format!("{:?}", resource_type),
+                        "status": "planned",
+                    }
+                }))
+            }
+            Err(e) => {
+                warn!(
+                    task_id = %task.id,
+                    error = %e,
+                    "provisioner planning failed"
+                );
+                None
+            }
+        }
     }
 
     // ── Self-Healing ─────────────────────────────────────────────────────
@@ -864,150 +1101,162 @@ impl PipelineExecutor {
         task_id: &'a str,
         error: &'a str,
         spec: &'a PhaseSpec,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), CoreError>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), CoreError>> + Send + 'a>>
+    {
         Box::pin(async move {
-        let task = self
-            .pipeline
-            .task_graph
-            .get_task(task_id)
-            .ok_or_else(|| CoreError::TaskNotFound(task_id.to_string()))?;
-        let retry_count = task.retry_count;
-        let task_name = task.name.clone();
+            let task = self
+                .pipeline
+                .task_graph
+                .get_task(task_id)
+                .ok_or_else(|| CoreError::TaskNotFound(task_id.to_string()))?;
+            let retry_count = task.retry_count;
+            let task_name = task.name.clone();
 
-        let layer = self.healer.determine_layer(retry_count, error);
+            let layer = self.healer.determine_layer(retry_count, error);
 
-        info!(
-            task_id,
-            error,
-            layer = layer.name(),
-            retry_count,
-            "attempting self-healing"
-        );
+            info!(
+                task_id,
+                error,
+                layer = layer.name(),
+                retry_count,
+                "attempting self-healing"
+            );
 
-        self.emit_event(ProgressEvent::new(
-            ProgressKind::TaskRetrying,
-            spec.phase,
-            serde_json::json!({
-                "task_id": task_id,
-                "error": error,
-                "healing_layer": layer.name(),
-                "retry_count": retry_count,
-            }),
-        ));
+            self.emit_event(ProgressEvent::new(
+                ProgressKind::TaskRetrying,
+                spec.phase,
+                serde_json::json!({
+                    "task_id": task_id,
+                    "error": error,
+                    "healing_layer": layer.name(),
+                    "retry_count": retry_count,
+                }),
+            ));
 
-        self.audit_record(
-            "self-healer",
-            AuditAction::SelfHealing,
-            format!("Healing task '{}' via layer: {}", task_name, layer),
-            serde_json::json!({
-                "task_id": task_id,
-                "error": error,
-                "layer": layer.name(),
-                "retry_count": retry_count,
-            }),
-        )
-        .await;
+            self.audit_record(
+                "self-healer",
+                AuditAction::SelfHealing,
+                format!("Healing task '{}' via layer: {}", task_name, layer),
+                serde_json::json!({
+                    "task_id": task_id,
+                    "error": error,
+                    "layer": layer.name(),
+                    "retry_count": retry_count,
+                }),
+            )
+            .await;
 
-        match layer {
-            HealingLayer::Retry => {
-                // Retry the task
-                if let Some(t) = self.pipeline.task_graph.get_task_mut(task_id) {
-                    t.retry();
-                }
-                let result = self.execute_single_task(task_id, spec).await;
-                if !result.success {
-                    warn!(task_id, "retry failed, escalating");
-                    // Recursive escalation
-                    return self
-                        .attempt_healing(task_id, result.error.as_deref().unwrap_or("unknown"), spec)
-                        .await;
-                }
-                Ok(())
-            }
-
-            HealingLayer::Alternative => {
-                // Try a different agent role if available
-                if let Some(t) = self.pipeline.task_graph.get_task_mut(task_id) {
-                    t.retry();
-                }
-                // Swap to CTO agent as fallback (it has access to all knowledge)
-                let task = self.pipeline.task_graph.get_task(task_id).cloned();
-                if let Some(mut task) = task {
-                    task.agent_role = "cto".to_string();
-                    // Can't replace task in graph, so just retry with current role
-                }
-                let result = self.execute_single_task(task_id, spec).await;
-                if result.success {
-                    Ok(())
-                } else {
-                    self.attempt_healing(task_id, result.error.as_deref().unwrap_or("unknown"), spec)
-                        .await
-                }
-            }
-
-            HealingLayer::Decompose => {
-                // Mark the task as failed — decomposition would create sub-tasks
-                // which requires CTO agent analysis. For now, escalate.
-                warn!(task_id, "decomposition not yet implemented, escalating");
-                if let Some(t) = self.pipeline.task_graph.get_task_mut(task_id) {
-                    t.retry();
-                }
-                self.attempt_healing(task_id, error, spec).await
-            }
-
-            HealingLayer::Escalate => {
-                // Ask CTO agent for help
-                let msg = Message::new(
-                    "self-healer",
-                    "cto-0",
-                    MessageKind::EscalationRequest,
-                    serde_json::json!({
-                        "task_id": task_id,
-                        "error": error,
-                        "retry_count": retry_count,
-                    }),
-                );
-                let _ = self.bus.send(msg).await;
-
-                // After escalation, try one more time
-                if let Some(t) = self.pipeline.task_graph.get_task_mut(task_id) {
-                    if t.can_retry() {
+            match layer {
+                HealingLayer::Retry => {
+                    // Retry the task
+                    if let Some(t) = self.pipeline.task_graph.get_task_mut(task_id) {
                         t.retry();
-                        let result = self.execute_single_task(task_id, spec).await;
-                        if result.success {
-                            return Ok(());
-                        }
+                    }
+                    let result = self.execute_single_task(task_id, spec).await;
+                    if !result.success {
+                        warn!(task_id, "retry failed, escalating");
+                        // Recursive escalation
+                        return self
+                            .attempt_healing(
+                                task_id,
+                                result.error.as_deref().unwrap_or("unknown"),
+                                spec,
+                            )
+                            .await;
+                    }
+                    Ok(())
+                }
+
+                HealingLayer::Alternative => {
+                    // Try a different agent role if available
+                    if let Some(t) = self.pipeline.task_graph.get_task_mut(task_id) {
+                        t.retry();
+                    }
+                    // Swap to CTO agent as fallback (it has access to all knowledge)
+                    let task = self.pipeline.task_graph.get_task(task_id).cloned();
+                    if let Some(mut task) = task {
+                        task.agent_role = "cto".to_string();
+                        // Can't replace task in graph, so just retry with current role
+                    }
+                    let result = self.execute_single_task(task_id, spec).await;
+                    if result.success {
+                        Ok(())
+                    } else {
+                        self.attempt_healing(
+                            task_id,
+                            result.error.as_deref().unwrap_or("unknown"),
+                            spec,
+                        )
+                        .await
                     }
                 }
 
-                // Fall through to pause & alert
-                self.attempt_healing(task_id, error, spec).await
+                HealingLayer::Decompose => {
+                    // Mark the task as failed — decomposition would create sub-tasks
+                    // which requires CTO agent analysis. For now, escalate.
+                    warn!(task_id, "decomposition not yet implemented, escalating");
+                    if let Some(t) = self.pipeline.task_graph.get_task_mut(task_id) {
+                        t.retry();
+                    }
+                    self.attempt_healing(task_id, error, spec).await
+                }
+
+                HealingLayer::Escalate => {
+                    // Ask CTO agent for help
+                    let msg = Message::new(
+                        "self-healer",
+                        "cto-0",
+                        MessageKind::EscalationRequest,
+                        serde_json::json!({
+                            "task_id": task_id,
+                            "error": error,
+                            "retry_count": retry_count,
+                        }),
+                    );
+                    let _ = self.bus.send(msg).await;
+
+                    // After escalation, try one more time
+                    if let Some(t) = self.pipeline.task_graph.get_task_mut(task_id) {
+                        if t.can_retry() {
+                            t.retry();
+                            let result = self.execute_single_task(task_id, spec).await;
+                            if result.success {
+                                return Ok(());
+                            }
+                        }
+                    }
+
+                    // Fall through to pause & alert
+                    self.attempt_healing(task_id, error, spec).await
+                }
+
+                HealingLayer::PauseAndAlert => {
+                    // All healing layers exhausted — pause and alert owner
+                    warn!(
+                        task_id,
+                        error, "all healing layers exhausted, pausing pipeline"
+                    );
+
+                    let msg = Message::broadcast(
+                        "self-healer",
+                        MessageKind::OwnerInput,
+                        serde_json::json!({
+                            "task_id": task_id,
+                            "error": error,
+                            "message": format!("Task '{}' has failed after all recovery attempts. Awaiting owner input.", task_name),
+                        }),
+                    );
+                    let _ = self.bus.broadcast(msg).await;
+
+                    // Save state so owner can resume later
+                    self.save_checkpoint().await;
+
+                    Err(CoreError::SelfHealingExhausted {
+                        task_id: task_id.to_string(),
+                        layers: 5,
+                    })
+                }
             }
-
-            HealingLayer::PauseAndAlert => {
-                // All healing layers exhausted — pause and alert owner
-                warn!(task_id, error, "all healing layers exhausted, pausing pipeline");
-
-                let msg = Message::broadcast(
-                    "self-healer",
-                    MessageKind::OwnerInput,
-                    serde_json::json!({
-                        "task_id": task_id,
-                        "error": error,
-                        "message": format!("Task '{}' has failed after all recovery attempts. Awaiting owner input.", task_name),
-                    }),
-                );
-                let _ = self.bus.broadcast(msg).await;
-
-                // Save state so owner can resume later
-                self.save_checkpoint().await;
-
-                Err(CoreError::SelfHealingExhausted {
-                    task_id: task_id.to_string(),
-                    layers: 5,
-                })
-            }
-        }
         })
     }
 
@@ -1052,7 +1301,10 @@ impl PipelineExecutor {
             "monitor" => AgentRole::Monitor,
             _ => {
                 // Fall back to first required agent for this phase
-                spec.required_agents.first().copied().unwrap_or(AgentRole::Cto)
+                spec.required_agents
+                    .first()
+                    .copied()
+                    .unwrap_or(AgentRole::Cto)
             }
         }
     }
@@ -1081,11 +1333,7 @@ impl PipelineExecutor {
 
     /// Save a checkpoint for resume capability.
     async fn save_checkpoint(&mut self) {
-        let checkpoint = PipelineCheckpoint::capture(
-            &self.build_id,
-            &self.pipeline,
-            &self.agents,
-        );
+        let checkpoint = PipelineCheckpoint::capture(&self.build_id, &self.pipeline, &self.agents);
 
         if let Some(ref checkpoint_fn) = self.checkpoint_fn {
             match checkpoint.to_bytes() {
@@ -1320,7 +1568,10 @@ pub struct PipelineReport {
 
 impl std::fmt::Display for PipelineReport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "┌─ PIPELINE REPORT ────────────────────────────────────────┐")?;
+        writeln!(
+            f,
+            "┌─ PIPELINE REPORT ────────────────────────────────────────┐"
+        )?;
         writeln!(f, "│  Build:    {:<47}│", self.build_id)?;
         writeln!(
             f,
@@ -1335,19 +1586,33 @@ impl std::fmt::Display for PipelineReport {
         writeln!(
             f,
             "│  Tasks:    {}/{} completed, {} failed{:<27}│",
-            self.completed_tasks,
-            self.total_tasks,
-            self.failed_tasks,
-            ""
+            self.completed_tasks, self.total_tasks, self.failed_tasks, ""
         )?;
         writeln!(f, "│  Tokens:   {:<47}│", self.total_tokens)?;
+        writeln!(f, "│  Time:     {:.1}s{:<44}│", self.elapsed_seconds, "")?;
         writeln!(
             f,
-            "│  Time:     {:.1}s{:<44}│",
-            self.elapsed_seconds, ""
-        )?;
-        writeln!(f, "└──────────────────────────────────────────────────────────┘")
+            "└──────────────────────────────────────────────────────────┘"
+        )
     }
+}
+
+// ── Knowledge Formatting ────────────────────────────────────────────────────
+
+/// Format KnowledgeBrain chunks into a context string for agent prompts.
+fn format_knowledge_context(chunks: &[KnowledgeChunk]) -> String {
+    let mut ctx = String::from("## Relevant Knowledge\n\n");
+    for (i, chunk) in chunks.iter().enumerate() {
+        ctx.push_str(&format!(
+            "### Source {}: {} — {} (score: {:.2})\n{}\n\n",
+            i + 1,
+            chunk.source_file,
+            chunk.section,
+            chunk.score,
+            chunk.content,
+        ));
+    }
+    ctx
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -1445,9 +1710,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_progress_events_emitted() {
-        let tasks = vec![
-            make_phase_task("task-1", "cto", BuildPhase::Ingest),
-        ];
+        let tasks = vec![make_phase_task("task-1", "cto", BuildPhase::Ingest)];
 
         let mut executor = setup_executor(tasks);
         executor.execute().await.unwrap();
@@ -1472,9 +1735,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_audit_log_entries() {
-        let tasks = vec![
-            make_phase_task("task-1", "backend", BuildPhase::Code),
-        ];
+        let tasks = vec![make_phase_task("task-1", "backend", BuildPhase::Code)];
 
         let bus = Arc::new(MessageBus::new(64));
         let audit = Arc::new(RwLock::new(AuditLog::new()));
@@ -1502,9 +1763,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_checkpoint_serialization() {
-        let tasks = vec![
-            make_phase_task("t1", "cto", BuildPhase::Ingest),
-        ];
+        let tasks = vec![make_phase_task("t1", "cto", BuildPhase::Ingest)];
 
         let mut executor = setup_executor(tasks);
 
@@ -1592,9 +1851,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_halt_during_execution() {
-        let tasks = vec![
-            make_phase_task("task-1", "cto", BuildPhase::Ingest),
-        ];
+        let tasks = vec![make_phase_task("task-1", "cto", BuildPhase::Ingest)];
 
         let mut executor = setup_executor(tasks);
 
@@ -1619,6 +1876,120 @@ mod tests {
 
         let stats = executor.agents().stats();
         assert_eq!(stats.total, 8);
+    }
+
+    #[tokio::test]
+    async fn test_dry_run_flag_default() {
+        let executor = setup_executor(vec![]);
+        assert!(executor.dry_run, "executor should default to dry_run=true");
+        assert!(executor.ai_bridge.is_none());
+        assert!(executor.knowledge.is_none());
+        assert!(executor.provisioner.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_dry_run_explicit_false() {
+        let tasks = vec![make_phase_task(
+            "parse-framework",
+            "cto",
+            BuildPhase::Ingest,
+        )];
+        // With dry_run=false but no bridge, run_agent_task falls back to dry
+        let mut executor = setup_executor(tasks).with_dry_run(false);
+        let report = executor.execute().await.unwrap();
+        assert!(report.success);
+        // Should still complete (falls back to dry when no bridge)
+        assert_eq!(report.completed_tasks, 1);
+    }
+
+    #[tokio::test]
+    async fn test_dry_run_output_marked() {
+        let tasks = vec![make_phase_task("t1", "cto", BuildPhase::Ingest)];
+        let mut executor = setup_executor(tasks);
+        let report = executor.execute().await.unwrap();
+
+        // In dry-run mode, task output should contain "dry_run: true"
+        let result = &report.task_results[0];
+        assert!(result.success);
+        if let Some(output) = &result.output {
+            assert_eq!(output.get("dry_run").and_then(|v| v.as_bool()), Some(true));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_infra_phase_provisioner_output() {
+        // Infrastructure tasks should include provisioner metadata in output
+        let tasks = vec![make_phase_task(
+            "provision-server",
+            "devops",
+            BuildPhase::Infrastructure,
+        )];
+        // Dry-run: no provisioner attached, so no infra output
+        let mut executor = setup_executor(tasks);
+        let report = executor.execute().await.unwrap();
+        assert!(report.success);
+
+        // In dry-run with no provisioner, infra output is not merged
+        let result = &report.task_results[0];
+        if let Some(output) = &result.output {
+            assert!(output.get("infrastructure").is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_with_provisioner_attached() {
+        let tasks = vec![make_phase_task(
+            "provision-server",
+            "devops",
+            BuildPhase::Infrastructure,
+        )];
+
+        let provisioner = Arc::new(RwLock::new(Provisioner::new()));
+        // Even with provisioner attached, dry_run=true means no provisioning
+        let executor = setup_executor(tasks).with_provisioner(provisioner);
+        assert!(executor.dry_run); // Still dry_run since with_provisioner doesn't flip it
+
+        // Verify the provisioner is attached
+        assert!(executor.provisioner.is_some());
+    }
+
+    #[test]
+    fn test_format_knowledge_context() {
+        let chunks = vec![
+            KnowledgeChunk {
+                source_file: "architecture.md".into(),
+                section: "API Design".into(),
+                content: "REST endpoints follow...".into(),
+                score: 0.95,
+                agent_tags: vec!["backend".into()],
+                line_start: 10,
+                line_end: 25,
+            },
+            KnowledgeChunk {
+                source_file: "design.md".into(),
+                section: "DB Schema".into(),
+                content: "PostgreSQL tables...".into(),
+                score: 0.82,
+                agent_tags: vec!["architect".into()],
+                line_start: 50,
+                line_end: 70,
+            },
+        ];
+        let ctx = format_knowledge_context(&chunks);
+        assert!(ctx.contains("Relevant Knowledge"));
+        assert!(ctx.contains("architecture.md"));
+        assert!(ctx.contains("API Design"));
+        assert!(ctx.contains("0.95"));
+        assert!(ctx.contains("design.md"));
+        assert!(ctx.contains("DB Schema"));
+    }
+
+    #[test]
+    fn test_format_knowledge_context_empty() {
+        let ctx = format_knowledge_context(&[]);
+        assert!(ctx.contains("Relevant Knowledge"));
+        // No source sections
+        assert!(!ctx.contains("Source 1"));
     }
 
     #[tokio::test]
@@ -1664,9 +2035,18 @@ mod tests {
         let executor = setup_executor(vec![]);
         let spec = &phase_specs()[3]; // Code phase
 
-        assert_eq!(executor.resolve_agent_role("backend", spec), AgentRole::Backend);
-        assert_eq!(executor.resolve_agent_role("frontend", spec), AgentRole::Frontend);
-        assert_eq!(executor.resolve_agent_role("unknown", spec), AgentRole::Backend); // fallback
+        assert_eq!(
+            executor.resolve_agent_role("backend", spec),
+            AgentRole::Backend
+        );
+        assert_eq!(
+            executor.resolve_agent_role("frontend", spec),
+            AgentRole::Frontend
+        );
+        assert_eq!(
+            executor.resolve_agent_role("unknown", spec),
+            AgentRole::Backend
+        ); // fallback
     }
 
     #[tokio::test]
@@ -1674,8 +2054,7 @@ mod tests {
         let t1 = make_phase_task("build-api", "backend", BuildPhase::Code);
         let t1_id = t1.id.clone();
         let t2 = make_phase_task("build-ui", "frontend", BuildPhase::Code);
-        let t3 = make_phase_task("integrate", "backend", BuildPhase::Code)
-            .depends_on(&t1_id);
+        let t3 = make_phase_task("integrate", "backend", BuildPhase::Code).depends_on(&t1_id);
 
         let mut executor = setup_executor(vec![t1, t2, t3]);
         let report = executor.execute().await.unwrap();

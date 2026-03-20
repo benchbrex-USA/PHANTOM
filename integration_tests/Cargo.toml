@@ -1,0 +1,22 @@
+[package]
+name = "phantom-integration-tests"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Phantom integration tests: end-to-end pipeline, agent orchestration, P2P sync, self-healing, zero-footprint"
+publish = false
+
+[dependencies]
+phantom-core = { workspace = true }
+phantom-infra = { workspace = true }
+phantom-net = { workspace = true }
+phantom-ai = { workspace = true }
+phantom-crypto = { workspace = true }
+phantom-brain = { workspace = true }
+phantom-storage = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }

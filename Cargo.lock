@@ -3214,6 +3214,7 @@ dependencies = [
  "anyhow",
  "clap",
  "crossterm",
+ "hex",
  "phantom-ai",
  "phantom-brain",
  "phantom-core",
@@ -3275,9 +3276,11 @@ dependencies = [
  "chrono",
  "futures",
  "hex",
+ "libc",
  "phantom-ai",
  "phantom-brain",
  "phantom-crypto",
+ "phantom-infra",
  "phantom-storage",
  "serde",
  "serde_json",
@@ -3286,6 +3289,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -3318,14 +3322,35 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "hex",
+ "hmac",
  "phantom-crypto",
  "phantom-storage",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "phantom-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "phantom-ai",
+ "phantom-brain",
+ "phantom-core",
+ "phantom-crypto",
+ "phantom-infra",
+ "phantom-net",
+ "phantom-storage",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

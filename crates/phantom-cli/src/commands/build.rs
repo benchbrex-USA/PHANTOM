@@ -55,20 +55,24 @@ pub async fn run(
     let result = IngestionPipeline::run_sync(&framework_path)?;
 
     // Display extraction summary
-    println!("\x1b[1;32m  ✓ Parsed\x1b[0m {} sections, {} lines",
+    println!(
+        "\x1b[1;32m  ✓ Parsed\x1b[0m {} sections, {} lines",
         result.framework.sections.len(),
         result.framework.total_lines,
     );
-    println!("\x1b[1;32m  ✓ Extracted\x1b[0m {} components, {} technologies, {} constraints",
+    println!(
+        "\x1b[1;32m  ✓ Extracted\x1b[0m {} components, {} technologies, {} constraints",
         result.architecture.components.len(),
         result.architecture.technologies.len(),
         result.architecture.constraints.len(),
     );
-    println!("\x1b[1;32m  ✓ DAG\x1b[0m {} nodes in {} parallel layers",
+    println!(
+        "\x1b[1;32m  ✓ DAG\x1b[0m {} nodes in {} parallel layers",
         result.dag.len(),
         result.dag.layers.len(),
     );
-    println!("\x1b[1;32m  ✓ Plan\x1b[0m {} work streams, ~{} estimated LOC\n",
+    println!(
+        "\x1b[1;32m  ✓ Plan\x1b[0m {} work streams, ~{} estimated LOC\n",
         result.plan.streams.len(),
         result.plan.total_estimated_loc,
     );
@@ -114,14 +118,38 @@ pub async fn run(
     println!();
     println!("\x1b[1;34mBuild Pipeline\x1b[0m");
     let phases = [
-        (BuildPhase::Ingest, "Parse framework, build task graph, plan"),
-        (BuildPhase::Infrastructure, "Provision servers, create accounts, setup CI/CD"),
-        (BuildPhase::Architecture, "System design, DB schema, API contracts, ADRs"),
-        (BuildPhase::Code, "4 parallel streams (backend, frontend, devops, integrations)"),
-        (BuildPhase::Test, "Unit + integration + E2E (80% coverage gate)"),
-        (BuildPhase::Security, "Dependency audit, OWASP, auth review, pen test"),
-        (BuildPhase::Deploy, "Push > CI > Docker > deploy > DNS > TLS"),
-        (BuildPhase::Deliver, "Generate report, URLs, credentials, handoff"),
+        (
+            BuildPhase::Ingest,
+            "Parse framework, build task graph, plan",
+        ),
+        (
+            BuildPhase::Infrastructure,
+            "Provision servers, create accounts, setup CI/CD",
+        ),
+        (
+            BuildPhase::Architecture,
+            "System design, DB schema, API contracts, ADRs",
+        ),
+        (
+            BuildPhase::Code,
+            "4 parallel streams (backend, frontend, devops, integrations)",
+        ),
+        (
+            BuildPhase::Test,
+            "Unit + integration + E2E (80% coverage gate)",
+        ),
+        (
+            BuildPhase::Security,
+            "Dependency audit, OWASP, auth review, pen test",
+        ),
+        (
+            BuildPhase::Deploy,
+            "Push > CI > Docker > deploy > DNS > TLS",
+        ),
+        (
+            BuildPhase::Deliver,
+            "Generate report, URLs, credentials, handoff",
+        ),
     ];
 
     for (i, (phase, desc)) in phases.iter().enumerate() {

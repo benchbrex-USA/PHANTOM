@@ -13,12 +13,13 @@ pub mod providers;
 pub mod provisioner;
 
 pub use accounts::{
-    AccountError, AccountHealth, AccountHealthCheck, AccountHealingAction, AccountManager,
+    AccountError, AccountHealingAction, AccountHealth, AccountHealthCheck, AccountManager,
     AccountStatus, AuthMethod, CaptchaAction, CaptchaDetection, CredentialRecord, CredentialType,
-    DeletionRecord, OAuthFlowConfig, OAuthFlowState, RotationResult, SignupAction, SignupStep,
+    DeletionRecord, OAuthFlowConfig, OAuthFlowState, RotationResult, SignupAction, SignupExecutor,
+    SignupFlowResult, SignupStep,
 };
 pub use dependencies::{DependencyCheck, DependencyInstaller, DependencySummary, InstallPhase};
-pub use doctor::{Doctor, DoctorReport, DoctorResult, DoctorStatus};
+pub use doctor::{format_report, Doctor, DoctorReport, DoctorResult, DoctorStatus};
 pub use errors::InfraError;
 pub use health::{HealthCheckResult, HealthChecker, HealthStatus, HealthSummary};
 pub use providers::{Provider, ProviderState, ProviderStatus, ResourceType, ALL_PROVIDERS};

@@ -15,3 +15,6 @@ pub mod license;
 pub mod master_key;
 
 pub use errors::CryptoError;
+pub use master_key::{
+    DestructionPayload, MasterKeySession, MnemonicBackup, RemoteKillPayload, TotpConfig,
+};

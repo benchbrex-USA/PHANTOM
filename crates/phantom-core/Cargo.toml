@@ -19,9 +19,12 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 sha2 = { workspace = true }
 hex = "0.4"
+zeroize = { version = "1", features = ["derive"] }
+libc = "0.2"
 phantom-crypto = { workspace = true }
 phantom-brain = { workspace = true }
 phantom-ai = { workspace = true }
+phantom-infra = { workspace = true }
 phantom-storage = { workspace = true }
 
 [dev-dependencies]

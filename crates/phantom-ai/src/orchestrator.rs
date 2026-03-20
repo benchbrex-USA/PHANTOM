@@ -284,7 +284,8 @@ impl AgentWorker {
             .map(|c| format!("{}/{}", c.source, c.heading))
             .collect();
 
-        self.context.inject_knowledge_batch(request.knowledge_chunks);
+        self.context
+            .inject_knowledge_batch(request.knowledge_chunks);
 
         // Load conversation history for multi-turn tasks
         for msg in &request.history {
@@ -294,11 +295,7 @@ impl AgentWorker {
         // ── Step 2: Build the prompt ───────────────────────────────────
 
         let system_prompt = self.context.build_system_prompt();
-        let task_text = task_prompt(
-            self.role,
-            &request.description,
-            request.context.as_deref(),
-        );
+        let task_text = task_prompt(self.role, &request.description, request.context.as_deref());
         let messages = self.context.build_messages(&task_text);
 
         debug!(
@@ -316,7 +313,11 @@ impl AgentWorker {
             messages,
             system: Some(system_prompt),
             max_tokens: request.max_tokens.unwrap_or_else(|| self.role.max_tokens()),
-            temperature: Some(request.temperature.unwrap_or_else(|| self.role.temperature())),
+            temperature: Some(
+                request
+                    .temperature
+                    .unwrap_or_else(|| self.role.temperature()),
+            ),
             stop_sequences: None,
         };
 
@@ -452,10 +453,7 @@ impl DelegationRouter {
     }
 
     /// Handle an incoming delegation request.
-    async fn route(
-        &self,
-        request: DelegationRequest,
-    ) -> Result<DelegationResult, AiError> {
+    async fn route(&self, request: DelegationRequest) -> Result<DelegationResult, AiError> {
         // Validate: only CTO and Architect can delegate
         let from_role = parse_role_from_agent_id(&request.from_agent);
         if let Some(role) = from_role {
@@ -468,15 +466,9 @@ impl DelegationRouter {
         }
 
         // Find the target worker
-        let sender = self
-            .worker_senders
-            .get(&request.to_role)
-            .ok_or_else(|| {
-                AiError::RequestFailed(format!(
-                    "no worker available for role {}",
-                    request.to_role
-                ))
-            })?;
+        let sender = self.worker_senders.get(&request.to_role).ok_or_else(|| {
+            AiError::RequestFailed(format!("no worker available for role {}", request.to_role))
+        })?;
 
         // Build a TaskRequest from the delegation
         let task_request = TaskRequest::new(
@@ -724,9 +716,7 @@ impl OrchestratorHandle {
         let sender = self
             .worker_senders
             .get(&role)
-            .ok_or_else(|| {
-                AiError::RequestFailed(format!("no worker for role {}", role))
-            })?;
+            .ok_or_else(|| AiError::RequestFailed(format!("no worker for role {}", role)))?;
 
         let (response_tx, response_rx) = oneshot::channel();
 
@@ -750,9 +740,10 @@ impl OrchestratorHandle {
                 }
                 output
             }
-            Ok(Err(_)) => Err(AiError::RequestFailed(
-                format!("worker dropped response for task {}", task_id),
-            )),
+            Ok(Err(_)) => Err(AiError::RequestFailed(format!(
+                "worker dropped response for task {}",
+                task_id
+            ))),
             Err(_) => Err(AiError::AgentTimeout {
                 agent_id: format!("{}-0", role.id()),
             }),
@@ -816,10 +807,9 @@ impl OrchestratorHandle {
         for handle in handles {
             match handle.await {
                 Ok(result) => results.push(result),
-                Err(e) => results.push(Err(AiError::RequestFailed(format!(
-                    "task panicked: {}",
-                    e
-                )))),
+                Err(e) => {
+                    results.push(Err(AiError::RequestFailed(format!("task panicked: {}", e))))
+                }
             }
         }
 
@@ -860,10 +850,7 @@ impl OrchestratorHandle {
                             d.to_role,
                             &d.subtask_description,
                         )
-                        .with_context(format!(
-                            "DELEGATION FROM {}: {}",
-                            d.from_agent, d.context
-                        ))
+                        .with_context(format!("DELEGATION FROM {}: {}", d.from_agent, d.context))
                     })
                     .collect();
 
@@ -890,10 +877,7 @@ impl OrchestratorHandle {
 
                 if !delegation_summaries.is_empty() {
                     let existing = output.structured.take().unwrap_or(serde_json::json!({}));
-                    let mut obj = existing
-                        .as_object()
-                        .cloned()
-                        .unwrap_or_default();
+                    let mut obj = existing.as_object().cloned().unwrap_or_default();
                     obj.insert(
                         "delegation_results".into(),
                         serde_json::Value::Array(delegation_summaries),
@@ -1096,10 +1080,7 @@ fn extract_json_blocks(text: &str) -> Vec<String> {
 }
 
 /// Parse a delegation JSON object into a DelegationRequest.
-fn parse_delegation(
-    value: &serde_json::Value,
-    from_role: AgentRole,
-) -> Option<DelegationRequest> {
+fn parse_delegation(value: &serde_json::Value, from_role: AgentRole) -> Option<DelegationRequest> {
     let to_str = value.get("to").and_then(|v| v.as_str())?;
     let task = value
         .get("task")
@@ -1129,10 +1110,7 @@ fn parse_delegation(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let priority = value
-        .get("priority")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(5) as u32;
+    let priority = value.get("priority").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
 
     Some(DelegationRequest {
         id: uuid::Uuid::new_v4().to_string(),
@@ -1152,7 +1130,10 @@ fn parse_delegation(
 
 /// Parse an agent role from an agent ID string like "cto-0" or "backend-1".
 fn parse_role_from_agent_id(agent_id: &str) -> Option<AgentRole> {
-    let role_str = agent_id.rsplit_once('-').map(|(r, _)| r).unwrap_or(agent_id);
+    let role_str = agent_id
+        .rsplit_once('-')
+        .map(|(r, _)| r)
+        .unwrap_or(agent_id);
     match role_str {
         "cto" => Some(AgentRole::Cto),
         "architect" => Some(AgentRole::Architect),
@@ -1199,7 +1180,7 @@ impl PipelineBridge {
         context: Option<&str>,
     ) -> Result<PipelineTaskResult, AiError> {
         let role = parse_role_from_agent_id(agent_role_str)
-            .or_else(|| match agent_role_str {
+            .or(match agent_role_str {
                 "cto" => Some(AgentRole::Cto),
                 "architect" => Some(AgentRole::Architect),
                 "backend" => Some(AgentRole::Backend),
@@ -1212,8 +1193,8 @@ impl PipelineBridge {
             })
             .unwrap_or(AgentRole::Cto);
 
-        let mut request = TaskRequest::new(task_id, role, description)
-            .with_knowledge(knowledge_chunks);
+        let mut request =
+            TaskRequest::new(task_id, role, description).with_knowledge(knowledge_chunks);
 
         if let Some(q) = knowledge_query {
             request = request.with_knowledge_query(q);
@@ -1334,8 +1315,14 @@ mod tests {
 
         assert_eq!(request.task_id, "t-1");
         assert_eq!(request.agent_role, AgentRole::Backend);
-        assert_eq!(request.context.as_deref(), Some("REST API for user management"));
-        assert_eq!(request.knowledge_query.as_deref(), Some("REST API best practices"));
+        assert_eq!(
+            request.context.as_deref(),
+            Some("REST API for user management")
+        );
+        assert_eq!(
+            request.knowledge_query.as_deref(),
+            Some("REST API best practices")
+        );
         assert_eq!(request.max_tokens, Some(8192));
     }
 
@@ -1356,8 +1343,8 @@ mod tests {
             },
         ];
 
-        let request = TaskRequest::new("t-2", AgentRole::Security, "audit auth")
-            .with_knowledge(chunks);
+        let request =
+            TaskRequest::new("t-2", AgentRole::Security, "audit auth").with_knowledge(chunks);
 
         assert_eq!(request.knowledge_chunks.len(), 2);
     }
@@ -1394,9 +1381,15 @@ mod tests {
     #[test]
     fn test_parse_role_from_agent_id() {
         assert_eq!(parse_role_from_agent_id("cto-0"), Some(AgentRole::Cto));
-        assert_eq!(parse_role_from_agent_id("backend-1"), Some(AgentRole::Backend));
+        assert_eq!(
+            parse_role_from_agent_id("backend-1"),
+            Some(AgentRole::Backend)
+        );
         assert_eq!(parse_role_from_agent_id("qa-0"), Some(AgentRole::Qa));
-        assert_eq!(parse_role_from_agent_id("devops-2"), Some(AgentRole::DevOps));
+        assert_eq!(
+            parse_role_from_agent_id("devops-2"),
+            Some(AgentRole::DevOps)
+        );
         assert_eq!(parse_role_from_agent_id("unknown-0"), None);
     }
 
@@ -1708,11 +1701,7 @@ Waiting for delegation."#;
         let handle = orch.start().await;
 
         for role in crate::agents::ALL_ROLES {
-            assert!(
-                handle.has_worker(*role),
-                "missing worker for {:?}",
-                role
-            );
+            assert!(handle.has_worker(*role), "missing worker for {:?}", role);
         }
     }
 

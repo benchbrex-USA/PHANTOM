@@ -22,6 +22,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 reqwest = { workspace = true }
 tempfile = "3"
+hex = "0.4"
 phantom-core = { workspace = true }
 phantom-crypto = { workspace = true }
 phantom-net = { workspace = true }

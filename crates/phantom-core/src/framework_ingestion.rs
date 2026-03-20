@@ -164,8 +164,7 @@ impl MarkdownParser {
 
         info!(
             sections = sections.len(),
-            total_lines,
-            "framework parsed successfully"
+            total_lines, "framework parsed successfully"
         );
 
         Ok(ParsedFramework {
@@ -434,13 +433,23 @@ impl ComponentExtractor {
             components.push(Component {
                 id: "knowledge-brain".into(),
                 name: "Knowledge Brain".into(),
-                description: "10 expert knowledge files embedded as vector database with semantic search".into(),
+                description:
+                    "10 expert knowledge files embedded as vector database with semantic search"
+                        .into(),
                 kind: ComponentKind::Knowledge,
                 agent_role: "cto".into(),
                 build_phase: BuildPhase::Infrastructure,
                 technologies: vec![
-                    Technology { name: "ChromaDB".into(), category: "database".into(), purpose: "Vector storage for knowledge chunks".into() },
-                    Technology { name: "sentence-transformers".into(), category: "library".into(), purpose: "Embedding generation (all-MiniLM-L6-v2)".into() },
+                    Technology {
+                        name: "ChromaDB".into(),
+                        category: "database".into(),
+                        purpose: "Vector storage for knowledge chunks".into(),
+                    },
+                    Technology {
+                        name: "sentence-transformers".into(),
+                        category: "library".into(),
+                        purpose: "Embedding generation (all-MiniLM-L6-v2)".into(),
+                    },
                 ],
                 constraints: vec![],
                 depends_on: vec![],
@@ -480,18 +489,34 @@ impl ComponentExtractor {
         }
 
         // §4: Autonomous Dependency Installation
-        if let Some(section) = Self::find_section(framework, &["dependency installation", "autonomous dependency"]) {
+        if let Some(section) = Self::find_section(
+            framework,
+            &["dependency installation", "autonomous dependency"],
+        ) {
             components.push(Component {
                 id: "dependency-installer".into(),
                 name: "Autonomous Dependency Installation Pipeline".into(),
-                description: "Auto-detect and install all 18+ dependencies with owner approval".into(),
+                description: "Auto-detect and install all 18+ dependencies with owner approval"
+                    .into(),
                 kind: ComponentKind::Infrastructure,
                 agent_role: "devops".into(),
                 build_phase: BuildPhase::Infrastructure,
                 technologies: vec![
-                    Technology { name: "Homebrew".into(), category: "package_manager".into(), purpose: "macOS package management".into() },
-                    Technology { name: "nvm".into(), category: "version_manager".into(), purpose: "Node.js version management".into() },
-                    Technology { name: "pyenv".into(), category: "version_manager".into(), purpose: "Python version management".into() },
+                    Technology {
+                        name: "Homebrew".into(),
+                        category: "package_manager".into(),
+                        purpose: "macOS package management".into(),
+                    },
+                    Technology {
+                        name: "nvm".into(),
+                        category: "version_manager".into(),
+                        purpose: "Node.js version management".into(),
+                    },
+                    Technology {
+                        name: "pyenv".into(),
+                        category: "version_manager".into(),
+                        purpose: "Python version management".into(),
+                    },
                 ],
                 constraints: vec![Constraint {
                     rule: "Ask permission before installing anything".into(),
@@ -501,22 +526,29 @@ impl ComponentExtractor {
                 depends_on: vec!["macos-access-layer".into()],
                 estimated_loc: 600,
                 source_section: section.heading.clone(),
-                knowledge_queries: vec!["dependency installation automation homebrew nvm pyenv".into()],
+                knowledge_queries: vec![
+                    "dependency installation automation homebrew nvm pyenv".into()
+                ],
             });
         }
 
         // §5: Autonomous Account Creation
-        if let Some(section) = Self::find_section(framework, &["account creation", "account matrix"]) {
+        if let Some(section) =
+            Self::find_section(framework, &["account creation", "account matrix"])
+        {
             components.push(Component {
                 id: "account-manager".into(),
                 name: "Autonomous Account Creation Pipeline".into(),
-                description: "Create and manage accounts on 14+ services with credential lifecycle".into(),
+                description: "Create and manage accounts on 14+ services with credential lifecycle"
+                    .into(),
                 kind: ComponentKind::Infrastructure,
                 agent_role: "devops".into(),
                 build_phase: BuildPhase::Infrastructure,
-                technologies: vec![
-                    Technology { name: "Playwright".into(), category: "automation".into(), purpose: "Headless browser for complex signup flows".into() },
-                ],
+                technologies: vec![Technology {
+                    name: "Playwright".into(),
+                    category: "automation".into(),
+                    purpose: "Headless browser for complex signup flows".into(),
+                }],
                 constraints: vec![Constraint {
                     rule: "Owner approves each account creation via terminal prompt".into(),
                     source_section: section.heading.clone(),
@@ -525,7 +557,9 @@ impl ComponentExtractor {
                 depends_on: vec!["dependency-installer".into(), "credential-vault".into()],
                 estimated_loc: 600,
                 source_section: section.heading.clone(),
-                knowledge_queries: vec!["account creation OAuth CLI automation credential management".into()],
+                knowledge_queries: vec![
+                    "account creation OAuth CLI automation credential management".into(),
+                ],
             });
         }
 
@@ -536,17 +570,29 @@ impl ComponentExtractor {
         Self::extract_agent_components(framework, &mut components);
 
         // §9: Zero-Footprint Execution Engine
-        if let Some(section) = Self::find_section(framework, &["zero-footprint", "execution engine"]) {
+        if let Some(section) =
+            Self::find_section(framework, &["zero-footprint", "execution engine"])
+        {
             components.push(Component {
                 id: "zero-footprint-engine".into(),
                 name: "Zero-Footprint Execution Engine".into(),
-                description: "No local disk storage — all state in remote encrypted blobs, RAM-only session".into(),
+                description:
+                    "No local disk storage — all state in remote encrypted blobs, RAM-only session"
+                        .into(),
                 kind: ComponentKind::Module,
                 agent_role: "backend".into(),
                 build_phase: BuildPhase::Architecture,
                 technologies: vec![
-                    Technology { name: "AES-256-GCM".into(), category: "crypto".into(), purpose: "Encrypt all remote data".into() },
-                    Technology { name: "Cloudflare R2".into(), category: "storage".into(), purpose: "Encrypted blob storage".into() },
+                    Technology {
+                        name: "AES-256-GCM".into(),
+                        category: "crypto".into(),
+                        purpose: "Encrypt all remote data".into(),
+                    },
+                    Technology {
+                        name: "Cloudflare R2".into(),
+                        category: "storage".into(),
+                        purpose: "Encrypted blob storage".into(),
+                    },
                 ],
                 constraints: vec![Constraint {
                     rule: "Zero local disk footprint — binary + in-memory session only".into(),
@@ -556,12 +602,16 @@ impl ComponentExtractor {
                 depends_on: vec!["crypto-foundation".into(), "remote-storage".into()],
                 estimated_loc: 400,
                 source_section: section.heading.clone(),
-                knowledge_queries: vec!["zero-footprint encrypted remote storage session management".into()],
+                knowledge_queries: vec![
+                    "zero-footprint encrypted remote storage session management".into(),
+                ],
             });
         }
 
         // §10: Self-Discovering Infrastructure
-        if let Some(section) = Self::find_section(framework, &["self-discovering", "infrastructure"]) {
+        if let Some(section) =
+            Self::find_section(framework, &["self-discovering", "infrastructure"])
+        {
             components.push(Component {
                 id: "infra-discovery".into(),
                 name: "Self-Discovering Infrastructure".into(),
@@ -615,7 +665,9 @@ impl ComponentExtractor {
         components.push(Component {
             id: "framework-ingestion".into(),
             name: "Architecture Framework Ingestion Pipeline".into(),
-            description: "Parse markdown → extract components → build DAG → enrich via KB → plan → approve".into(),
+            description:
+                "Parse markdown → extract components → build DAG → enrich via KB → plan → approve"
+                    .into(),
             kind: ComponentKind::PipelinePhase,
             agent_role: "cto".into(),
             build_phase: BuildPhase::Ingest,
@@ -624,11 +676,16 @@ impl ComponentExtractor {
             depends_on: vec!["knowledge-brain".into()],
             estimated_loc: 1500,
             source_section: "Architecture Framework Ingestion Pipeline".into(),
-            knowledge_queries: vec!["architecture framework parsing dependency graph task planning".into()],
+            knowledge_queries: vec![
+                "architecture framework parsing dependency graph task planning".into(),
+            ],
         });
 
         // §13: Build Pipeline
-        if let Some(section) = Self::find_section(framework, &["autonomous build pipeline", "spec to production"]) {
+        if let Some(section) = Self::find_section(
+            framework,
+            &["autonomous build pipeline", "spec to production"],
+        ) {
             components.push(Component {
                 id: "build-pipeline".into(),
                 name: "Autonomous Build Pipeline".into(),
@@ -654,7 +711,9 @@ impl ComponentExtractor {
             components.push(Component {
                 id: "self-healing".into(),
                 name: "Self-Healing & Recovery System".into(),
-                description: "5-layer recovery: retry → alternative → decompose → escalate → pause & alert".into(),
+                description:
+                    "5-layer recovery: retry → alternative → decompose → escalate → pause & alert"
+                        .into(),
                 kind: ComponentKind::Module,
                 agent_role: "monitor".into(),
                 build_phase: BuildPhase::Architecture,
@@ -663,7 +722,9 @@ impl ComponentExtractor {
                 depends_on: vec!["agent-orchestration".into()],
                 estimated_loc: 450,
                 source_section: section.heading.clone(),
-                knowledge_queries: vec!["self-healing recovery retry exponential backoff error handling".into()],
+                knowledge_queries: vec![
+                    "self-healing recovery retry exponential backoff error handling".into(),
+                ],
             });
         }
 
@@ -680,8 +741,16 @@ impl ComponentExtractor {
                 agent_role: "frontend".into(),
                 build_phase: BuildPhase::Code,
                 technologies: vec![
-                    Technology { name: "clap".into(), category: "library".into(), purpose: "CLI argument parsing".into() },
-                    Technology { name: "ratatui".into(), category: "library".into(), purpose: "Terminal UI dashboard".into() },
+                    Technology {
+                        name: "clap".into(),
+                        category: "library".into(),
+                        purpose: "CLI argument parsing".into(),
+                    },
+                    Technology {
+                        name: "ratatui".into(),
+                        category: "library".into(),
+                        purpose: "Terminal UI dashboard".into(),
+                    },
                 ],
                 constraints: vec![],
                 depends_on: vec!["build-pipeline".into()],
@@ -705,7 +774,9 @@ impl ComponentExtractor {
                 depends_on: vec!["crypto-foundation".into()],
                 estimated_loc: 300,
                 source_section: section.heading.clone(),
-                knowledge_queries: vec!["installation script binary distribution signed release".into()],
+                knowledge_queries: vec![
+                    "installation script binary distribution signed release".into()
+                ],
             });
         }
 
@@ -717,9 +788,11 @@ impl ComponentExtractor {
             kind: ComponentKind::Module,
             agent_role: "backend".into(),
             build_phase: BuildPhase::Architecture,
-            technologies: vec![
-                Technology { name: "aws-sdk-s3".into(), category: "sdk".into(), purpose: "S3-compatible client for R2".into() },
-            ],
+            technologies: vec![Technology {
+                name: "aws-sdk-s3".into(),
+                category: "sdk".into(),
+                purpose: "S3-compatible client for R2".into(),
+            }],
             constraints: vec![Constraint {
                 rule: "Servers are dumb encrypted blob storage — zero-knowledge".into(),
                 source_section: "Zero-Footprint Execution Engine".into(),
@@ -781,20 +854,24 @@ impl ComponentExtractor {
             components.push(Component {
                 id: "license-gate".into(),
                 name: "License Key Gate".into(),
-                description: "Ed25519-signed license tokens with machine binding and expiration".into(),
+                description: "Ed25519-signed license tokens with machine binding and expiration"
+                    .into(),
                 kind: ComponentKind::Security,
                 agent_role: "security".into(),
                 build_phase: BuildPhase::Architecture,
                 technologies: vec![],
                 constraints: vec![Constraint {
-                    rule: "No installation without a valid license key — fails = process exit".into(),
+                    rule: "No installation without a valid license key — fails = process exit"
+                        .into(),
                     source_section: "License Key Gate".into(),
                     severity: "must".into(),
                 }],
                 depends_on: vec!["crypto-foundation".into()],
                 estimated_loc: 300,
                 source_section: "License Key Gate".into(),
-                knowledge_queries: vec!["license key Ed25519 signature machine fingerprint binding".into()],
+                knowledge_queries: vec![
+                    "license key Ed25519 signature machine fingerprint binding".into(),
+                ],
             });
         }
 
@@ -802,7 +879,8 @@ impl ComponentExtractor {
         components.push(Component {
             id: "credential-vault".into(),
             name: "Credential Vault".into(),
-            description: "Encrypted credential storage with TTL, rotation, macOS Keychain bridge".into(),
+            description: "Encrypted credential storage with TTL, rotation, macOS Keychain bridge"
+                .into(),
             kind: ComponentKind::Security,
             agent_role: "security".into(),
             build_phase: BuildPhase::Architecture,
@@ -842,14 +920,62 @@ impl ComponentExtractor {
     /// Extract agent components from §8.
     fn extract_agent_components(_framework: &ParsedFramework, components: &mut Vec<Component>) {
         let agent_specs: Vec<(&str, &str, &str, &str, u32)> = vec![
-            ("agent-cto", "CTO Agent", "cto", "Orchestrator — parse framework, decompose tasks, monitor agents", 500),
-            ("agent-architect", "Architect Agent", "architect", "System design, tech stack selection, DB schema, API contracts, ADRs", 400),
-            ("agent-backend", "Backend Agent", "backend", "FastAPI, auth, database models, background jobs, model integration", 500),
-            ("agent-frontend", "Frontend Agent", "frontend", "Next.js, design tokens, 8pt grid, dark mode, WCAG 2.2 AA, responsive", 500),
-            ("agent-devops", "DevOps Agent", "devops", "Docker, GitHub Actions, CI/CD, branch protection, IaC", 400),
-            ("agent-qa", "QA Agent", "qa", "Tests for all error classes, pytest + Vitest + Playwright, 80%+ coverage", 400),
-            ("agent-security", "Security Agent", "security", "OWASP Top 10, dependency audit, auth flow audit, AI model security", 300),
-            ("agent-monitor", "Monitor Agent", "monitor", "5-layer self-healing, daemon operation, health monitoring, cost tracking", 300),
+            (
+                "agent-cto",
+                "CTO Agent",
+                "cto",
+                "Orchestrator — parse framework, decompose tasks, monitor agents",
+                500,
+            ),
+            (
+                "agent-architect",
+                "Architect Agent",
+                "architect",
+                "System design, tech stack selection, DB schema, API contracts, ADRs",
+                400,
+            ),
+            (
+                "agent-backend",
+                "Backend Agent",
+                "backend",
+                "FastAPI, auth, database models, background jobs, model integration",
+                500,
+            ),
+            (
+                "agent-frontend",
+                "Frontend Agent",
+                "frontend",
+                "Next.js, design tokens, 8pt grid, dark mode, WCAG 2.2 AA, responsive",
+                500,
+            ),
+            (
+                "agent-devops",
+                "DevOps Agent",
+                "devops",
+                "Docker, GitHub Actions, CI/CD, branch protection, IaC",
+                400,
+            ),
+            (
+                "agent-qa",
+                "QA Agent",
+                "qa",
+                "Tests for all error classes, pytest + Vitest + Playwright, 80%+ coverage",
+                400,
+            ),
+            (
+                "agent-security",
+                "Security Agent",
+                "security",
+                "OWASP Top 10, dependency audit, auth flow audit, AI model security",
+                300,
+            ),
+            (
+                "agent-monitor",
+                "Monitor Agent",
+                "monitor",
+                "5-layer self-healing, daemon operation, health monitoring, cost tracking",
+                300,
+            ),
         ];
 
         // Agent orchestration (the manager that coordinates all agents)
@@ -860,11 +986,14 @@ impl ComponentExtractor {
             kind: ComponentKind::Module,
             agent_role: "cto".into(),
             build_phase: BuildPhase::Architecture,
-            technologies: vec![
-                Technology { name: "Anthropic API".into(), category: "api".into(), purpose: "Agent reasoning via Claude".into() },
-            ],
+            technologies: vec![Technology {
+                name: "Anthropic API".into(),
+                category: "api".into(),
+                purpose: "Agent reasoning via Claude".into(),
+            }],
             constraints: vec![Constraint {
-                rule: "Token budgets, scoped permissions, timeouts, signed audit log per agent".into(),
+                rule: "Token budgets, scoped permissions, timeouts, signed audit log per agent"
+                    .into(),
                 source_section: "Agent Architecture".into(),
                 severity: "must".into(),
             }],
@@ -875,7 +1004,9 @@ impl ComponentExtractor {
             ],
             estimated_loc: 1200,
             source_section: "Agent Architecture".into(),
-            knowledge_queries: vec!["multi-agent orchestration task delegation parallel execution token budget".into()],
+            knowledge_queries: vec![
+                "multi-agent orchestration task delegation parallel execution token budget".into(),
+            ],
         });
 
         // Individual agent definitions as components
@@ -892,13 +1023,20 @@ impl ComponentExtractor {
                 depends_on: vec!["agent-orchestration".into()],
                 estimated_loc: loc,
                 source_section: "Agent Architecture".into(),
-                knowledge_queries: vec![format!("{} agent role responsibilities knowledge scope", role)],
+                knowledge_queries: vec![format!(
+                    "{} agent role responsibilities knowledge scope",
+                    role
+                )],
             });
         }
     }
 
     /// Extract "Beyond Human" feature components from §15.
-    fn extract_beyond_human_components(_framework: &ParsedFramework, components: &mut Vec<Component>) {
+    fn extract_beyond_human_components(
+        _framework: &ParsedFramework,
+        components: &mut Vec<Component>,
+    ) {
+        #[allow(clippy::type_complexity)]
         let features: Vec<(&str, &str, &str, &str, u32, Vec<&str>)> = vec![
             (
                 "ambient-awareness",
@@ -906,7 +1044,7 @@ impl ComponentExtractor {
                 "Continuously monitor terminal, git, docker, ports, CPU, battery, time",
                 "monitor",
                 500,
-                vec!["agent-monitor".into()],
+                vec!["agent-monitor"],
             ),
             (
                 "self-scheduling-daemon",
@@ -914,7 +1052,7 @@ impl ComponentExtractor {
                 "launchd daemon — runs at login, scheduled builds, survives terminal closure",
                 "devops",
                 300,
-                vec!["macos-access-layer".into()],
+                vec!["macos-access-layer"],
             ),
             (
                 "smart-git",
@@ -922,7 +1060,7 @@ impl ComponentExtractor {
                 "Semantic branches, conventional commits, auto PRs, auto merge, changelogs",
                 "devops",
                 400,
-                vec!["agent-devops".into()],
+                vec!["agent-devops"],
             ),
             (
                 "predictive-errors",
@@ -930,7 +1068,7 @@ impl ComponentExtractor {
                 "Pre-check library versions, API endpoints, ports, disk, circular deps, migrations",
                 "qa",
                 300,
-                vec!["knowledge-brain".into()],
+                vec!["knowledge-brain"],
             ),
             (
                 "cross-project-memory",
@@ -938,7 +1076,7 @@ impl ComponentExtractor {
                 "Remember what worked across all projects, stored as learned patterns in ChromaDB",
                 "cto",
                 200,
-                vec!["knowledge-brain".into()],
+                vec!["knowledge-brain"],
             ),
             (
                 "cost-oracle",
@@ -946,7 +1084,7 @@ impl ComponentExtractor {
                 "Estimate infrastructure and AI costs per framework before building",
                 "cto",
                 200,
-                vec!["infra-discovery".into()],
+                vec!["infra-discovery"],
             ),
         ];
 
@@ -1406,7 +1544,11 @@ impl KnowledgeEnricher {
             });
 
             // Sort by score descending
-            all_chunks.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+            all_chunks.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
 
             // Extract best practices and citations
             let best_practices: Vec<String> = all_chunks
@@ -1447,10 +1589,7 @@ impl KnowledgeEnricher {
             results.push(enrichment);
         }
 
-        info!(
-            enriched = results.len(),
-            "knowledge enrichment complete"
-        );
+        info!(enriched = results.len(), "knowledge enrichment complete");
 
         Ok(results)
     }
@@ -1584,9 +1723,7 @@ impl PlanGenerator {
 
         info!(
             streams = streams.len(),
-            total_estimated_loc,
-            total_estimated_seconds,
-            "execution plan generated"
+            total_estimated_loc, total_estimated_seconds, "execution plan generated"
         );
 
         Ok(ExecutionPlan {
@@ -1675,17 +1812,12 @@ impl ExecutionPlan {
     pub fn display_summary(&self) -> String {
         let mut out = String::new();
 
-        out.push_str(&format!(
-            "┌─ EXECUTION PLAN ─────────────────────────────────────────────────┐\n"
-        ));
+        out.push_str("┌─ EXECUTION PLAN ─────────────────────────────────────────────────┐\n");
         out.push_str(&format!(
             "│  Project: {:<54}│\n",
             truncate_str(&self.project_name, 54)
         ));
-        out.push_str(&format!(
-            "│  Components: {:<51}│\n",
-            self.total_components
-        ));
+        out.push_str(&format!("│  Components: {:<51}│\n", self.total_components));
         out.push_str(&format!(
             "│  Estimated LOC: {:<48}│\n",
             format!("~{}", self.total_estimated_loc)
@@ -1694,9 +1826,7 @@ impl ExecutionPlan {
             "│  Estimated Time: {:<47}│\n",
             format_duration(self.total_estimated_seconds)
         ));
-        out.push_str(
-            "├──────────────────────────────────────────────────────────────────┤\n",
-        );
+        out.push_str("├──────────────────────────────────────────────────────────────────┤\n");
 
         for stream in &self.streams {
             out.push_str(&format!(
@@ -1714,21 +1844,14 @@ impl ExecutionPlan {
                     .find(|e| &e.component_id == comp_id)
                     .map(|_| "")
                     .unwrap_or("");
-                out.push_str(&format!(
-                    "│    ├── {:<56}│\n",
-                    truncate_str(comp_id, 56)
-                ));
+                out.push_str(&format!("│    ├── {:<56}│\n", truncate_str(comp_id, 56)));
                 let _ = role; // Suppress unused warning
             }
         }
 
         if !self.constraints.is_empty() {
-            out.push_str(
-                "├──────────────────────────────────────────────────────────────────┤\n",
-            );
-            out.push_str(
-                "│  CONSTRAINTS:                                                    │\n",
-            );
+            out.push_str("├──────────────────────────────────────────────────────────────────┤\n");
+            out.push_str("│  CONSTRAINTS:                                                    │\n");
             for (i, c) in self.constraints.iter().take(5).enumerate() {
                 out.push_str(&format!(
                     "│  {}. {:<60}│\n",
@@ -1744,9 +1867,7 @@ impl ExecutionPlan {
             }
         }
 
-        out.push_str(
-            "└──────────────────────────────────────────────────────────────────┘\n",
-        );
+        out.push_str("└──────────────────────────────────────────────────────────────────┘\n");
 
         out
     }
@@ -2046,11 +2167,8 @@ One command install.
     fn test_extract_tables() {
         let framework = MarkdownParser::parse(SAMPLE_FRAMEWORK, "test.md").unwrap();
 
-        let tables: Vec<&MarkdownTable> = framework
-            .sections
-            .iter()
-            .flat_map(|s| &s.tables)
-            .collect();
+        let tables: Vec<&MarkdownTable> =
+            framework.sections.iter().flat_map(|s| &s.tables).collect();
 
         assert!(
             tables.len() >= 2,
@@ -2062,7 +2180,10 @@ One command install.
         let law_table = tables
             .iter()
             .find(|t| t.headers.iter().any(|h| h.contains("Law")));
-        assert!(law_table.is_some(), "expected to find a table with 'Law' header");
+        assert!(
+            law_table.is_some(),
+            "expected to find a table with 'Law' header"
+        );
     }
 
     #[test]
@@ -2089,8 +2210,14 @@ One command install.
         // Should find key components
         let ids: Vec<&str> = arch.components.iter().map(|c| c.id.as_str()).collect();
         assert!(ids.contains(&"knowledge-brain"), "missing knowledge-brain");
-        assert!(ids.contains(&"crypto-foundation"), "missing crypto-foundation");
-        assert!(ids.contains(&"agent-orchestration"), "missing agent-orchestration");
+        assert!(
+            ids.contains(&"crypto-foundation"),
+            "missing crypto-foundation"
+        );
+        assert!(
+            ids.contains(&"agent-orchestration"),
+            "missing agent-orchestration"
+        );
         assert!(ids.contains(&"p2p-mesh"), "missing p2p-mesh");
     }
 
@@ -2286,7 +2413,8 @@ One command install.
 
     #[test]
     fn test_table_parsing_edge_cases() {
-        let body = "| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n\nSome text.\n\n| X |\n|---|\n| y |";
+        let body =
+            "| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n\nSome text.\n\n| X |\n|---|\n| y |";
         let tables = MarkdownParser::extract_tables(body);
         assert_eq!(tables.len(), 2);
         assert_eq!(tables[0].headers, vec!["A", "B"]);
@@ -2307,7 +2435,10 @@ One command install.
 
         assert_eq!(agent_components.len(), 8, "should have all 8 agents");
 
-        let roles: HashSet<&str> = agent_components.iter().map(|c| c.agent_role.as_str()).collect();
+        let roles: HashSet<&str> = agent_components
+            .iter()
+            .map(|c| c.agent_role.as_str())
+            .collect();
         assert!(roles.contains("cto"));
         assert!(roles.contains("backend"));
         assert!(roles.contains("frontend"));

@@ -209,6 +209,245 @@ impl Doctor {
             })
             .collect()
     }
+
+    /// Run `phantom doctor --full`: dependencies + providers + disk + network + crypto.
+    pub fn run_full(&self) -> DoctorReport {
+        let mut results = Vec::new();
+
+        results.extend(self.check_dependencies());
+        results.extend(self.check_provider_clis());
+        results.extend(self.check_disk_space());
+        results.extend(self.check_network_connectivity());
+        results.extend(self.check_crypto_requirements());
+        results.extend(self.check_runtime_environment());
+
+        let report = DoctorReport::from_results(results);
+        info!(
+            total = report.total,
+            ok = report.ok_count,
+            missing = report.missing_count,
+            healthy = report.healthy,
+            "full doctor check complete"
+        );
+        report
+    }
+
+    /// Check available disk space in temp and home directories.
+    pub fn check_disk_space(&self) -> Vec<DoctorResult> {
+        let mut results = Vec::new();
+        let tmp = std::env::temp_dir();
+        if tmp.exists() {
+            results.push(DoctorResult::ok(
+                "Temp directory",
+                "Disk",
+                Some(tmp.display().to_string()),
+            ));
+        } else {
+            results.push(DoctorResult::missing(
+                "Temp directory",
+                "Disk",
+                "system temp dir does not exist",
+            ));
+        }
+
+        if let Ok(home) = std::env::var("HOME") {
+            let home_path = std::path::PathBuf::from(&home);
+            if home_path.exists() {
+                results.push(DoctorResult::ok("Home directory", "Disk", Some(home)));
+            }
+        }
+
+        results
+    }
+
+    /// Check basic network connectivity (DNS resolution via simple command).
+    pub fn check_network_connectivity(&self) -> Vec<DoctorResult> {
+        let mut results = Vec::new();
+
+        // Check if we can resolve DNS
+        let output = std::process::Command::new("host")
+            .arg("github.com")
+            .output();
+
+        match output {
+            Ok(o) if o.status.success() => {
+                results.push(DoctorResult::ok("DNS resolution", "Network", None));
+            }
+            _ => {
+                results.push(DoctorResult::warning(
+                    "DNS resolution",
+                    "Network",
+                    "cannot resolve github.com — network may be offline",
+                ));
+            }
+        }
+
+        // Check if curl is available (needed for API calls)
+        let curl = std::process::Command::new("which").arg("curl").output();
+        match curl {
+            Ok(o) if o.status.success() => {
+                results.push(DoctorResult::ok("curl", "Network", None));
+            }
+            _ => {
+                results.push(DoctorResult::missing(
+                    "curl",
+                    "Network",
+                    "curl not found — required for API calls",
+                ));
+            }
+        }
+
+        results
+    }
+
+    /// Check crypto / security requirements.
+    pub fn check_crypto_requirements(&self) -> Vec<DoctorResult> {
+        let mut results = Vec::new();
+
+        // Check openssl
+        let openssl = std::process::Command::new("openssl")
+            .arg("version")
+            .output();
+        match openssl {
+            Ok(o) if o.status.success() => {
+                let ver = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                results.push(DoctorResult::ok("OpenSSL", "Crypto", Some(ver)));
+            }
+            _ => {
+                results.push(DoctorResult::warning(
+                    "OpenSSL",
+                    "Crypto",
+                    "openssl not found — some crypto operations may fail",
+                ));
+            }
+        }
+
+        // Check ssh-keygen (for SSH key generation)
+        let ssh = std::process::Command::new("which")
+            .arg("ssh-keygen")
+            .output();
+        match ssh {
+            Ok(o) if o.status.success() => {
+                results.push(DoctorResult::ok("ssh-keygen", "Crypto", None));
+            }
+            _ => {
+                results.push(DoctorResult::warning(
+                    "ssh-keygen",
+                    "Crypto",
+                    "ssh-keygen not found",
+                ));
+            }
+        }
+
+        results
+    }
+
+    /// Check runtime environment (Rust toolchain, macOS version, etc.).
+    pub fn check_runtime_environment(&self) -> Vec<DoctorResult> {
+        let mut results = Vec::new();
+
+        // Check OS
+        results.push(DoctorResult::ok(
+            "Operating System",
+            "Runtime",
+            Some(std::env::consts::OS.to_string()),
+        ));
+
+        // Check architecture
+        results.push(DoctorResult::ok(
+            "Architecture",
+            "Runtime",
+            Some(std::env::consts::ARCH.to_string()),
+        ));
+
+        // Check Rust toolchain
+        let rustc = std::process::Command::new("rustc")
+            .arg("--version")
+            .output();
+        match rustc {
+            Ok(o) if o.status.success() => {
+                let ver = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                results.push(DoctorResult::ok("Rust toolchain", "Runtime", Some(ver)));
+            }
+            _ => {
+                results.push(DoctorResult::missing(
+                    "Rust toolchain",
+                    "Runtime",
+                    "rustc not found — required for building Phantom",
+                ));
+            }
+        }
+
+        // Check cargo
+        let cargo = std::process::Command::new("cargo")
+            .arg("--version")
+            .output();
+        match cargo {
+            Ok(o) if o.status.success() => {
+                let ver = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                results.push(DoctorResult::ok("Cargo", "Runtime", Some(ver)));
+            }
+            _ => {
+                results.push(DoctorResult::missing("Cargo", "Runtime", "cargo not found"));
+            }
+        }
+
+        results
+    }
+}
+
+/// Format a doctor report as a human-readable string (for `phantom doctor --full` output).
+pub fn format_report(report: &DoctorReport) -> String {
+    let mut out = String::new();
+    out.push_str("╔══════════════════════════════════════════════════════════╗\n");
+    out.push_str("║              PHANTOM DOCTOR — SYSTEM READINESS          ║\n");
+    out.push_str("╚══════════════════════════════════════════════════════════╝\n\n");
+
+    let mut current_category = String::new();
+    for result in &report.results {
+        if result.category != current_category {
+            current_category = result.category.clone();
+            out.push_str(&format!("── {} ──\n", current_category));
+        }
+
+        let icon = match result.status {
+            DoctorStatus::Ok => "✓",
+            DoctorStatus::Missing => "✗",
+            DoctorStatus::Warning => "⚠",
+            DoctorStatus::Error => "✗",
+        };
+
+        let ver_str = result
+            .version
+            .as_deref()
+            .map(|v| format!(" ({})", v))
+            .unwrap_or_default();
+        let msg_str = result
+            .message
+            .as_deref()
+            .map(|m| format!(" — {}", m))
+            .unwrap_or_default();
+
+        out.push_str(&format!(
+            "  {} {}{}{}\n",
+            icon, result.name, ver_str, msg_str
+        ));
+    }
+
+    out.push_str(&format!(
+        "\nSummary: {}/{} OK, {} missing, {} warnings\n",
+        report.ok_count, report.total, report.missing_count, report.warning_count
+    ));
+    out.push_str(&format!(
+        "Status: {}\n",
+        if report.healthy {
+            "HEALTHY"
+        } else {
+            "UNHEALTHY"
+        }
+    ));
+
+    out
 }
 
 fn dep_check_to_result(check: DependencyCheck) -> DoctorResult {

@@ -18,6 +18,56 @@ use tracing::{debug, info, instrument, warn};
 
 use crate::providers::{Provider, ALL_PROVIDERS};
 
+// ── Signup Executor Trait ─────────────────────────────────────────────────
+
+/// Trait abstracting browser automation for signup flow execution.
+///
+/// Implemented by `BrowserAutomation` in phantom-core to avoid circular deps.
+/// Each method corresponds to a `SignupAction` variant. Implementations drive
+/// the actual browser (osascript JXA, Playwright, etc.).
+pub trait SignupExecutor {
+    /// Navigate the browser to a URL.
+    fn navigate(&mut self, url: &str) -> Result<(), AccountError>;
+
+    /// Fill a form field identified by CSS selector with a value.
+    fn fill(&mut self, selector: &str, value: &str) -> Result<(), AccountError>;
+
+    /// Click an element identified by CSS selector.
+    fn click(&mut self, selector: &str) -> Result<(), AccountError>;
+
+    /// Wait for an element matching CSS selector to appear.
+    fn wait_for(&mut self, selector: &str, timeout: Duration) -> Result<(), AccountError>;
+
+    /// Wait for navigation to a URL matching the pattern.
+    fn wait_for_url(&mut self, pattern: &str, timeout: Duration) -> Result<(), AccountError>;
+
+    /// Extract text content from an element (e.g. to capture a generated token).
+    fn extract_token(&mut self, selector: &str) -> Result<String, AccountError>;
+
+    /// Take a screenshot and save to the given filename.
+    fn screenshot(&mut self, filename: &str) -> Result<(), AccountError>;
+
+    /// Get the current page HTML content (for CAPTCHA scanning).
+    fn page_content(&mut self) -> Result<String, AccountError>;
+
+    /// Notify the owner that manual CAPTCHA intervention is needed.
+    /// The implementation should emit a message via the message bus / TUI prompt
+    /// and block until the user confirms completion.
+    fn notify_captcha_pause(&mut self, message: &str) -> Result<(), AccountError>;
+}
+
+/// Result of executing a signup flow to completion.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignupFlowResult {
+    pub provider: Provider,
+    pub steps_completed: usize,
+    pub steps_total: usize,
+    pub extracted_tokens: Vec<String>,
+    pub captcha_pauses: usize,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
 // ── Auth Types ─────────────────────────────────────────────────────────────
 
 /// Authentication method for a provider.
@@ -72,6 +122,9 @@ pub fn auth_method_for(provider: Provider) -> AuthMethod {
         Provider::Neon => AuthMethod::ApiToken,
         Provider::Upstash => AuthMethod::ApiToken,
         Provider::Render => AuthMethod::ApiToken,
+        Provider::Hetzner => AuthMethod::ApiToken,
+        Provider::Vultr => AuthMethod::ApiToken,
+        Provider::DigitalOcean => AuthMethod::CliLogin,
     }
 }
 
@@ -116,6 +169,9 @@ pub fn env_var_for(provider: Provider) -> Option<&'static str> {
         Provider::Neon => Some("NEON_API_KEY"),
         Provider::Upstash => Some("UPSTASH_API_KEY"),
         Provider::Render => Some("RENDER_API_KEY"),
+        Provider::Hetzner => Some("HCLOUD_TOKEN"),
+        Provider::Vultr => Some("VULTR_API_KEY"),
+        Provider::DigitalOcean => Some("DIGITALOCEAN_TOKEN"),
         _ => None,
     }
 }
@@ -230,7 +286,10 @@ impl CredentialRecord {
             rotation_interval_secs: DEFAULT_ROTATION_DAYS * 86400,
             revoked: false,
             credential_type,
-            keychain_service: Some(format!("phantom-{}", provider.display_name().to_lowercase().replace(' ', "-"))),
+            keychain_service: Some(format!(
+                "phantom-{}",
+                provider.display_name().to_lowercase().replace(' ', "-")
+            )),
         }
     }
 
@@ -379,11 +438,23 @@ pub enum SignupAction {
     PauseForCaptcha { message: String },
 }
 
-/// Build the Playwright signup step sequence for a provider.
+/// Build the browser-based signup step sequence for a provider.
 pub fn signup_steps(provider: Provider) -> Vec<SignupStep> {
     match provider {
         Provider::GitHub => github_signup_steps(),
         Provider::Cloudflare | Provider::CloudflareR2 => cloudflare_signup_steps(),
+        Provider::Vercel => vercel_signup_steps(),
+        Provider::Supabase => supabase_signup_steps(),
+        Provider::Upstash => upstash_signup_steps(),
+        Provider::Neon => neon_signup_steps(),
+        Provider::FlyIo => flyio_signup_steps(),
+        Provider::Railway => railway_signup_steps(),
+        Provider::Render => render_signup_steps(),
+        Provider::Netlify => netlify_signup_steps(),
+        Provider::DigitalOcean => digitalocean_signup_steps(),
+        Provider::Hetzner => hetzner_signup_steps(),
+        Provider::Vultr => vultr_signup_steps(),
+        Provider::OracleCloud => oracle_cloud_signup_steps(),
         _ => Vec::new(),
     }
 }
@@ -519,6 +590,736 @@ fn cloudflare_signup_steps() -> Vec<SignupStep> {
             },
             check_captcha: false,
             timeout_secs: 60,
+        },
+    ]
+}
+
+fn vercel_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Vercel signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://vercel.com/signup".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Select 'Continue with Email' option".into(),
+            action: SignupAction::Click {
+                selector: "a[href='/signup?type=email']".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit email".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause — manual intervention may be required".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Vercel may require email verification or CAPTCHA. Complete it in the browser, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for dashboard".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "vercel.com/new".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn supabase_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Supabase signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://supabase.com/dashboard/sign-up".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter password".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=password]".into(),
+                value: "{{PASSWORD}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit signup form".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Supabase may require hCaptcha verification. Complete it in the browser, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for dashboard".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "supabase.com/dashboard".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn upstash_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Upstash signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://console.upstash.com/signup".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter password".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=password]".into(),
+                value: "{{PASSWORD}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit signup".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Upstash may require verification. Complete it in the browser, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for console".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "console.upstash.com".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn neon_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Neon signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://console.neon.tech/signup".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter password".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=password]".into(),
+                value: "{{PASSWORD}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit signup".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Neon may require email verification. Complete it in the browser, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for console".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "console.neon.tech".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn flyio_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Fly.io signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://fly.io/app/sign-up".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Enter name".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=name]".into(),
+                value: "{{USERNAME}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter password".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=password]".into(),
+                value: "{{PASSWORD}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit signup".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Fly.io may require CAPTCHA or email verification. Complete it in the browser, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for dashboard".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "fly.io/dashboard".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn railway_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Railway signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://railway.app/register".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Select email signup".into(),
+            action: SignupAction::Click {
+                selector: "button[data-testid='email-signup']".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit email".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Railway requires email verification. Check your email, click the link, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for dashboard".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "railway.app/dashboard".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn render_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Render signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://dashboard.render.com/register".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Enter name".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=name]".into(),
+                value: "{{USERNAME}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter password".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=password]".into(),
+                value: "{{PASSWORD}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit signup".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Render may require email verification. Complete it, then press Enter."
+                    .into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for dashboard".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "dashboard.render.com".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn netlify_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Netlify signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://app.netlify.com/signup".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Click 'Sign up with email' link".into(),
+            action: SignupAction::Click {
+                selector: "a[href='/signup/email']".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter password".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=password]".into(),
+                value: "{{PASSWORD}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit signup".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Netlify may require email verification. Check your email, click the link, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for dashboard".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "app.netlify.com".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn digitalocean_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to DigitalOcean signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://cloud.digitalocean.com/registrations/new".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter password".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=password]".into(),
+                value: "{{PASSWORD}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit signup".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause — Turnstile challenge likely".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "DigitalOcean uses Turnstile CAPTCHA and email verification. Complete both, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for console".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "cloud.digitalocean.com".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn hetzner_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Hetzner signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://accounts.hetzner.com/signUp".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit email".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Hetzner requires email verification and identity confirmation. Complete the process, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for console".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "console.hetzner.cloud".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 120,
+        },
+    ]
+}
+
+fn vultr_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Vultr signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://www.vultr.com/register/".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Enter name".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=name]".into(),
+                value: "{{USERNAME}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter password".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=password]".into(),
+                value: "{{PASSWORD}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Accept terms".into(),
+            action: SignupAction::Click {
+                selector: "input[name=agree]".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 5,
+        },
+        SignupStep {
+            description: "Submit signup".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA pause — reCAPTCHA likely".into(),
+            action: SignupAction::PauseForCaptcha {
+                message:
+                    "Vultr uses reCAPTCHA and email verification. Complete both, then press Enter."
+                        .into(),
+            },
+            check_captcha: false,
+            timeout_secs: 300,
+        },
+        SignupStep {
+            description: "Wait for console".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "my.vultr.com".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 60,
+        },
+    ]
+}
+
+fn oracle_cloud_signup_steps() -> Vec<SignupStep> {
+    vec![
+        SignupStep {
+            description: "Navigate to Oracle Cloud free tier signup".into(),
+            action: SignupAction::Navigate {
+                url: "https://signup.cloud.oracle.com/".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Enter country".into(),
+            action: SignupAction::Fill {
+                selector: "select[name=country]".into(),
+                value: "{{COUNTRY}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter first name".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=firstName]".into(),
+                value: "{{FIRST_NAME}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter last name".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=lastName]".into(),
+                value: "{{LAST_NAME}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Enter email address".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=email]".into(),
+                value: "{{EMAIL}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Verify email".into(),
+            action: SignupAction::Click {
+                selector: "button[data-testid='verify-email']".into(),
+            },
+            check_captcha: true,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "CAPTCHA + email verification pause".into(),
+            action: SignupAction::PauseForCaptcha {
+                message: "Oracle Cloud requires email verification, CAPTCHA, and possibly phone verification. Complete all steps, then press Enter.".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 600,
+        },
+        SignupStep {
+            description: "Enter password".into(),
+            action: SignupAction::Fill {
+                selector: "input[name=password]".into(),
+                value: "{{PASSWORD}}".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 10,
+        },
+        SignupStep {
+            description: "Submit registration".into(),
+            action: SignupAction::Click {
+                selector: "button[type=submit]".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 30,
+        },
+        SignupStep {
+            description: "Wait for console".into(),
+            action: SignupAction::WaitForUrl {
+                pattern: "cloud.oracle.com".into(),
+            },
+            check_captcha: false,
+            timeout_secs: 120,
         },
     ]
 }
@@ -717,10 +1518,15 @@ impl AccountManager {
     /// should navigate to). The actual token exchange happens in `complete_oauth`.
     #[instrument(skip(self))]
     pub fn start_oauth_flow(&self, provider: Provider) -> Result<OAuthFlowState, AccountError> {
-        let config = oauth_flow_config(provider)
-            .ok_or(AccountError::OAuthNotSupported(provider.display_name().into()))?;
+        let config = oauth_flow_config(provider).ok_or(AccountError::OAuthNotSupported(
+            provider.display_name().into(),
+        ))?;
 
-        let state_token = format!("phantom-{}-{}", provider.display_name().to_lowercase().replace(' ', "-"), current_epoch_secs());
+        let state_token = format!(
+            "phantom-{}-{}",
+            provider.display_name().to_lowercase().replace(' ', "-"),
+            current_epoch_secs()
+        );
 
         let authorize_url = format!(
             "{}?response_type=code&client_id={{{{CLIENT_ID}}}}&redirect_uri={}&scope={}&state={}",
@@ -730,10 +1536,7 @@ impl AccountManager {
             state_token
         );
 
-        info!(
-            provider = provider.display_name(),
-            "starting OAuth flow"
-        );
+        info!(provider = provider.display_name(), "starting OAuth flow");
 
         Ok(OAuthFlowState {
             provider,
@@ -804,12 +1607,19 @@ impl AccountManager {
     /// Returns the CLI command to execute for rotation, or None if the provider
     /// doesn't support CLI-based rotation.
     #[instrument(skip(self))]
-    pub fn rotate_credential(&mut self, provider: Provider) -> Result<RotationResult, AccountError> {
-        let record = self.credentials.get_mut(&provider)
+    pub fn rotate_credential(
+        &mut self,
+        provider: Provider,
+    ) -> Result<RotationResult, AccountError> {
+        let record = self
+            .credentials
+            .get_mut(&provider)
             .ok_or(AccountError::NoCredential(provider.display_name().into()))?;
 
         if record.revoked {
-            return Err(AccountError::CredentialRevoked(provider.display_name().into()));
+            return Err(AccountError::CredentialRevoked(
+                provider.display_name().into(),
+            ));
         }
 
         let command = rotation_command(provider);
@@ -848,10 +1658,7 @@ impl AccountManager {
                 deleted_at: current_epoch_secs(),
             });
 
-            info!(
-                provider = provider.display_name(),
-                "credential destroyed"
-            );
+            info!(provider = provider.display_name(), "credential destroyed");
         }
 
         // Reset all auth statuses
@@ -861,7 +1668,10 @@ impl AccountManager {
             status.message = Some("credentials destroyed".into());
         }
 
-        warn!(count = deletions.len(), "all credentials destroyed (zero-footprint)");
+        warn!(
+            count = deletions.len(),
+            "all credentials destroyed (zero-footprint)"
+        );
 
         deletions
     }
@@ -871,10 +1681,7 @@ impl AccountManager {
     /// Run health check for a single provider's account.
     #[instrument(skip(self))]
     pub fn health_check(&mut self, provider: Provider) -> &AccountHealthCheck {
-        let auth_status = self
-            .statuses
-            .iter()
-            .find(|s| s.provider == provider);
+        let auth_status = self.statuses.iter().find(|s| s.provider == provider);
 
         let is_authed = auth_status.map(|s| s.authenticated).unwrap_or(false);
         let credential = self.credentials.get(&provider);
@@ -898,16 +1705,18 @@ impl AccountManager {
                     format!(
                         "{}: rotation overdue by {}s",
                         provider.display_name(),
-                        current_epoch_secs().saturating_sub(
-                            cred.last_rotated_at + cred.rotation_interval_secs
-                        )
+                        current_epoch_secs()
+                            .saturating_sub(cred.last_rotated_at + cred.rotation_interval_secs)
                     ),
                     AccountHealingAction::RotateCredential,
                 )
             } else if !is_authed {
                 (
                     AccountHealth::CheckFailed,
-                    format!("{}: credential exists but auth check failed", provider.display_name()),
+                    format!(
+                        "{}: credential exists but auth check failed",
+                        provider.display_name()
+                    ),
                     AccountHealingAction::Reauthenticate,
                 )
             } else {
@@ -920,7 +1729,10 @@ impl AccountManager {
         } else if is_authed {
             (
                 AccountHealth::Healthy,
-                format!("{}: authenticated (no rotation tracking)", provider.display_name()),
+                format!(
+                    "{}: authenticated (no rotation tracking)",
+                    provider.display_name()
+                ),
                 AccountHealingAction::None,
             )
         } else {
@@ -981,7 +1793,7 @@ impl AccountManager {
 
     // ── Signup Flow Execution ──────────────────────────────────────────
 
-    /// Get the signup steps for a provider (for Playwright execution).
+    /// Get the signup steps for a provider.
     pub fn signup_flow(&self, provider: Provider) -> Vec<SignupStep> {
         signup_steps(provider)
     }
@@ -989,6 +1801,182 @@ impl AccountManager {
     /// Check if a provider has a browser-based signup flow.
     pub fn has_signup_flow(&self, provider: Provider) -> bool {
         !signup_steps(provider).is_empty()
+    }
+
+    /// Execute a full signup flow for a provider via a `SignupExecutor`.
+    ///
+    /// Converts each `SignupStep`/`SignupAction` into calls on the executor
+    /// (which wraps `BrowserAutomation` in phantom-core). Performs CAPTCHA
+    /// scanning after steps that request it and emits TUI pause prompts via
+    /// `executor.notify_captcha_pause()`.
+    #[instrument(skip(self, executor, vars))]
+    pub fn execute_signup_flow(
+        &mut self,
+        provider: Provider,
+        executor: &mut dyn SignupExecutor,
+        vars: &HashMap<String, String>,
+    ) -> Result<SignupFlowResult, AccountError> {
+        let steps = signup_steps(provider);
+        if steps.is_empty() {
+            return Err(AccountError::SignupFailed {
+                step: 0,
+                reason: format!("no signup flow defined for {}", provider.display_name()),
+            });
+        }
+
+        let steps_total = steps.len();
+        let mut steps_completed: usize = 0;
+        let mut extracted_tokens: Vec<String> = Vec::new();
+        let mut captcha_pauses: usize = 0;
+
+        info!(
+            provider = provider.display_name(),
+            steps = steps_total,
+            "starting signup flow execution"
+        );
+
+        for (i, step) in steps.iter().enumerate() {
+            debug!(
+                step = i,
+                description = %step.description,
+                "executing signup step"
+            );
+
+            let timeout = Duration::from_secs(step.timeout_secs);
+
+            // Execute the action
+            match &step.action {
+                SignupAction::Navigate { url } => {
+                    let resolved = resolve_template(url, vars);
+                    executor
+                        .navigate(&resolved)
+                        .map_err(|e| AccountError::SignupFailed {
+                            step: i,
+                            reason: format!("navigate failed: {e}"),
+                        })?;
+                }
+                SignupAction::Fill { selector, value } => {
+                    let resolved_val = resolve_template(value, vars);
+                    executor.fill(selector, &resolved_val).map_err(|e| {
+                        AccountError::SignupFailed {
+                            step: i,
+                            reason: format!("fill '{selector}' failed: {e}"),
+                        }
+                    })?;
+                }
+                SignupAction::Click { selector } => {
+                    executor
+                        .click(selector)
+                        .map_err(|e| AccountError::SignupFailed {
+                            step: i,
+                            reason: format!("click '{selector}' failed: {e}"),
+                        })?;
+                }
+                SignupAction::WaitFor { selector } => {
+                    executor.wait_for(selector, timeout).map_err(|e| {
+                        AccountError::SignupFailed {
+                            step: i,
+                            reason: format!("wait_for '{selector}' timed out: {e}"),
+                        }
+                    })?;
+                }
+                SignupAction::WaitForUrl { pattern } => {
+                    executor.wait_for_url(pattern, timeout).map_err(|e| {
+                        AccountError::SignupFailed {
+                            step: i,
+                            reason: format!("wait_for_url '{pattern}' timed out: {e}"),
+                        }
+                    })?;
+                }
+                SignupAction::ExtractToken { selector } => {
+                    let token = executor.extract_token(selector).map_err(|e| {
+                        AccountError::SignupFailed {
+                            step: i,
+                            reason: format!("extract_token '{selector}' failed: {e}"),
+                        }
+                    })?;
+                    extracted_tokens.push(token);
+                }
+                SignupAction::Screenshot { filename } => {
+                    executor
+                        .screenshot(filename)
+                        .map_err(|e| AccountError::SignupFailed {
+                            step: i,
+                            reason: format!("screenshot failed: {e}"),
+                        })?;
+                }
+                SignupAction::PauseForCaptcha { message } => {
+                    captcha_pauses += 1;
+                    info!(
+                        provider = provider.display_name(),
+                        pause = captcha_pauses,
+                        "CAPTCHA pause — notifying owner via TUI"
+                    );
+                    executor.notify_captcha_pause(message).map_err(|e| {
+                        AccountError::SignupFailed {
+                            step: i,
+                            reason: format!("captcha pause notification failed: {e}"),
+                        }
+                    })?;
+                }
+            }
+
+            // CAPTCHA scanning: after steps that request it, fetch page content and scan
+            if step.check_captcha {
+                if let Ok(content) = executor.page_content() {
+                    let detection = detect_captcha(&content, provider);
+                    if detection.detected {
+                        captcha_pauses += 1;
+                        let msg = format!(
+                            "CAPTCHA detected at step {} (indicator: {}). Complete it in the browser, then press Enter.",
+                            i,
+                            detection.indicator.as_deref().unwrap_or("unknown")
+                        );
+                        warn!(
+                            provider = provider.display_name(),
+                            indicator = detection.indicator.as_deref().unwrap_or("unknown"),
+                            "auto-detected CAPTCHA — pausing for manual intervention"
+                        );
+                        executor.notify_captcha_pause(&msg).map_err(|e| {
+                            AccountError::CaptchaDetected(format!(
+                                "{}: notification failed: {e}",
+                                provider.display_name()
+                            ))
+                        })?;
+                    }
+                }
+            }
+
+            steps_completed = i + 1;
+        }
+
+        // On success, register a credential record
+        let cred_type = match auth_method_for(provider) {
+            AuthMethod::CliLogin => CredentialType::CliSession,
+            AuthMethod::ApiToken => CredentialType::ApiToken,
+            AuthMethod::OAuth => CredentialType::OAuthToken,
+            AuthMethod::None => CredentialType::ApiToken,
+        };
+        self.register_credential(provider, cred_type);
+        self.set_authenticated(provider, None);
+
+        info!(
+            provider = provider.display_name(),
+            steps_completed,
+            captcha_pauses,
+            tokens = extracted_tokens.len(),
+            "signup flow completed successfully"
+        );
+
+        Ok(SignupFlowResult {
+            provider,
+            steps_completed,
+            steps_total,
+            extracted_tokens,
+            captcha_pauses,
+            success: true,
+            error: None,
+        })
     }
 
     // ── Helpers ────────────────────────────────────────────────────────
@@ -1108,6 +2096,19 @@ fn current_epoch_secs() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or(Duration::from_secs(0))
         .as_secs()
+}
+
+/// Resolve `{{VAR}}` template placeholders in a string using the provided map.
+///
+/// Supports: `{{EMAIL}}`, `{{PASSWORD}}`, `{{USERNAME}}`, `{{FIRST_NAME}}`,
+/// `{{LAST_NAME}}`, `{{COUNTRY}}`, and any other key in the map.
+fn resolve_template(template: &str, vars: &HashMap<String, String>) -> String {
+    let mut result = template.to_string();
+    for (key, value) in vars {
+        let placeholder = format!("{{{{{}}}}}", key);
+        result = result.replace(&placeholder, value);
+    }
+    result
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -1258,8 +2259,10 @@ mod tests {
         mgr.register_credential(Provider::Cloudflare, CredentialType::ApiToken);
 
         // Make GitHub credential stale
-        mgr.credentials.get_mut(&Provider::GitHub).unwrap().last_rotated_at =
-            current_epoch_secs() - (31 * 86400);
+        mgr.credentials
+            .get_mut(&Provider::GitHub)
+            .unwrap()
+            .last_rotated_at = current_epoch_secs() - (31 * 86400);
 
         let needing = mgr.credentials_needing_rotation();
         assert_eq!(needing.len(), 1);
@@ -1270,13 +2273,18 @@ mod tests {
     fn test_rotate_credential() {
         let mut mgr = AccountManager::new();
         mgr.register_credential(Provider::GitHub, CredentialType::CliSession);
-        mgr.credentials.get_mut(&Provider::GitHub).unwrap().last_rotated_at =
-            current_epoch_secs() - (31 * 86400);
+        mgr.credentials
+            .get_mut(&Provider::GitHub)
+            .unwrap()
+            .last_rotated_at = current_epoch_secs() - (31 * 86400);
 
         let result = mgr.rotate_credential(Provider::GitHub).unwrap();
         assert_eq!(result.provider, Provider::GitHub);
         assert_eq!(result.command, Some("gh auth refresh"));
-        assert!(!mgr.get_credential(Provider::GitHub).unwrap().needs_rotation());
+        assert!(!mgr
+            .get_credential(Provider::GitHub)
+            .unwrap()
+            .needs_rotation());
     }
 
     #[test]
@@ -1316,7 +2324,10 @@ mod tests {
         mgr.register_credential(Provider::GitHub, CredentialType::CliSession);
 
         let deletions = mgr.destroy_all_credentials();
-        let github_del = deletions.iter().find(|d| d.provider == Provider::GitHub).unwrap();
+        let github_del = deletions
+            .iter()
+            .find(|d| d.provider == Provider::GitHub)
+            .unwrap();
         assert_eq!(github_del.logout_command.as_deref(), Some("gh auth logout"));
         assert!(github_del.keychain_service.is_some());
     }
@@ -1358,8 +2369,14 @@ mod tests {
 
     #[test]
     fn test_captcha_action_display() {
-        assert_eq!(CaptchaAction::PauseForManual.to_string(), "pause_for_manual");
-        assert_eq!(CaptchaAction::RetryAfterDelay.to_string(), "retry_after_delay");
+        assert_eq!(
+            CaptchaAction::PauseForManual.to_string(),
+            "pause_for_manual"
+        );
+        assert_eq!(
+            CaptchaAction::RetryAfterDelay.to_string(),
+            "retry_after_delay"
+        );
         assert_eq!(CaptchaAction::SkipProvider.to_string(), "skip_provider");
     }
 
@@ -1370,9 +2387,13 @@ mod tests {
         let steps = signup_steps(Provider::GitHub);
         assert!(!steps.is_empty());
         // First step should navigate to signup
-        assert!(matches!(&steps[0].action, SignupAction::Navigate { url } if url.contains("github.com/signup")));
+        assert!(
+            matches!(&steps[0].action, SignupAction::Navigate { url } if url.contains("github.com/signup"))
+        );
         // Should contain a CAPTCHA pause step
-        assert!(steps.iter().any(|s| matches!(&s.action, SignupAction::PauseForCaptcha { .. })));
+        assert!(steps
+            .iter()
+            .any(|s| matches!(&s.action, SignupAction::PauseForCaptcha { .. })));
     }
 
     #[test]
@@ -1383,9 +2404,42 @@ mod tests {
     }
 
     #[test]
-    fn test_unsupported_signup_flow() {
-        assert!(signup_steps(Provider::Render).is_empty());
-        assert!(signup_steps(Provider::Neon).is_empty());
+    fn test_all_providers_have_signup_flows() {
+        // These 14 providers should all have signup flows now
+        let with_flows = [
+            Provider::GitHub,
+            Provider::Cloudflare,
+            Provider::Vercel,
+            Provider::Supabase,
+            Provider::Upstash,
+            Provider::Neon,
+            Provider::FlyIo,
+            Provider::Railway,
+            Provider::Render,
+            Provider::Netlify,
+            Provider::DigitalOcean,
+            Provider::Hetzner,
+            Provider::Vultr,
+            Provider::OracleCloud,
+        ];
+        for provider in &with_flows {
+            let steps = signup_steps(*provider);
+            assert!(!steps.is_empty(), "{:?} should have signup steps", provider);
+            // Every flow should start with a Navigate
+            assert!(
+                matches!(&steps[0].action, SignupAction::Navigate { .. }),
+                "{:?} first step should be Navigate",
+                provider
+            );
+            // Every flow should have at least one PauseForCaptcha
+            assert!(
+                steps
+                    .iter()
+                    .any(|s| matches!(&s.action, SignupAction::PauseForCaptcha { .. })),
+                "{:?} should have a CAPTCHA pause step",
+                provider
+            );
+        }
     }
 
     #[test]
@@ -1393,14 +2447,20 @@ mod tests {
         let mgr = AccountManager::new();
         assert!(mgr.has_signup_flow(Provider::GitHub));
         assert!(mgr.has_signup_flow(Provider::Cloudflare));
-        assert!(!mgr.has_signup_flow(Provider::Render));
+        assert!(mgr.has_signup_flow(Provider::Render));
+        assert!(mgr.has_signup_flow(Provider::Neon));
+        // Providers without flows
+        assert!(!mgr.has_signup_flow(Provider::GoogleCloud));
+        assert!(!mgr.has_signup_flow(Provider::AwsFreeTier));
     }
 
     #[test]
     fn test_signup_step_serde() {
         let step = SignupStep {
             description: "Navigate".into(),
-            action: SignupAction::Navigate { url: "https://example.com".into() },
+            action: SignupAction::Navigate {
+                url: "https://example.com".into(),
+            },
             check_captcha: true,
             timeout_secs: 30,
         };
@@ -1437,8 +2497,10 @@ mod tests {
         let mut mgr = AccountManager::new();
         mgr.register_credential(Provider::GitHub, CredentialType::CliSession);
         mgr.set_authenticated(Provider::GitHub, Some("user"));
-        mgr.credentials.get_mut(&Provider::GitHub).unwrap().last_rotated_at =
-            current_epoch_secs() - (31 * 86400);
+        mgr.credentials
+            .get_mut(&Provider::GitHub)
+            .unwrap()
+            .last_rotated_at = current_epoch_secs() - (31 * 86400);
 
         let check = mgr.health_check(Provider::GitHub);
         assert_eq!(check.health, AccountHealth::RotationDue);
@@ -1479,10 +2541,22 @@ mod tests {
 
     #[test]
     fn test_healing_layer_mapping() {
-        assert_eq!(AccountManager::healing_layer_for(AccountHealingAction::None), "none");
-        assert_eq!(AccountManager::healing_layer_for(AccountHealingAction::RotateCredential), "retry");
-        assert_eq!(AccountManager::healing_layer_for(AccountHealingAction::Reauthenticate), "alternative");
-        assert_eq!(AccountManager::healing_layer_for(AccountHealingAction::PauseAndAlert), "pause_and_alert");
+        assert_eq!(
+            AccountManager::healing_layer_for(AccountHealingAction::None),
+            "none"
+        );
+        assert_eq!(
+            AccountManager::healing_layer_for(AccountHealingAction::RotateCredential),
+            "retry"
+        );
+        assert_eq!(
+            AccountManager::healing_layer_for(AccountHealingAction::Reauthenticate),
+            "alternative"
+        );
+        assert_eq!(
+            AccountManager::healing_layer_for(AccountHealingAction::PauseAndAlert),
+            "pause_and_alert"
+        );
     }
 
     // ── Misc ───────────────────────────────────────────────────────────
@@ -1504,7 +2578,10 @@ mod tests {
     #[test]
     fn test_rotation_commands() {
         assert_eq!(rotation_command(Provider::GitHub), Some("gh auth refresh"));
-        assert_eq!(rotation_command(Provider::GoogleCloud), Some("gcloud auth login"));
+        assert_eq!(
+            rotation_command(Provider::GoogleCloud),
+            Some("gcloud auth login")
+        );
         assert!(rotation_command(Provider::Neon).is_none());
     }
 
@@ -1521,7 +2598,10 @@ mod tests {
         assert_eq!(record.keychain_service.as_deref(), Some("phantom-github"));
 
         let record2 = CredentialRecord::new(Provider::OracleCloud, CredentialType::ServiceAccount);
-        assert_eq!(record2.keychain_service.as_deref(), Some("phantom-oracle-cloud"));
+        assert_eq!(
+            record2.keychain_service.as_deref(),
+            Some("phantom-oracle-cloud")
+        );
     }
 
     #[test]
@@ -1552,5 +2632,238 @@ mod tests {
         assert_eq!(DEFAULT_ROTATION_DAYS, 30);
         let record = CredentialRecord::new(Provider::GitHub, CredentialType::ApiToken);
         assert_eq!(record.rotation_interval_secs, 30 * 86400);
+    }
+
+    // ── Template resolution tests ─────────────────────────────────────
+
+    #[test]
+    fn test_resolve_template_basic() {
+        let mut vars = HashMap::new();
+        vars.insert("EMAIL".into(), "test@example.com".into());
+        vars.insert("PASSWORD".into(), "s3cret".into());
+
+        assert_eq!(resolve_template("{{EMAIL}}", &vars), "test@example.com");
+        assert_eq!(
+            resolve_template("user: {{EMAIL}} / {{PASSWORD}}", &vars),
+            "user: test@example.com / s3cret"
+        );
+    }
+
+    #[test]
+    fn test_resolve_template_no_match() {
+        let vars = HashMap::new();
+        assert_eq!(resolve_template("{{UNKNOWN}}", &vars), "{{UNKNOWN}}");
+    }
+
+    #[test]
+    fn test_resolve_template_multiple_occurrences() {
+        let mut vars = HashMap::new();
+        vars.insert("X".into(), "y".into());
+        assert_eq!(resolve_template("{{X}}-{{X}}", &vars), "y-y");
+    }
+
+    // ── Signup executor mock tests ────────────────────────────────────
+
+    /// Mock executor for testing `execute_signup_flow`.
+    struct MockExecutor {
+        navigations: Vec<String>,
+        fills: Vec<(String, String)>,
+        clicks: Vec<String>,
+        captcha_pauses: usize,
+        page_html: String,
+        should_fail_at: Option<&'static str>,
+    }
+
+    impl MockExecutor {
+        fn new() -> Self {
+            Self {
+                navigations: Vec::new(),
+                fills: Vec::new(),
+                clicks: Vec::new(),
+                captcha_pauses: 0,
+                page_html: String::new(),
+                should_fail_at: None,
+            }
+        }
+
+        fn with_captcha_page(mut self) -> Self {
+            self.page_html = "<html><div class='g-recaptcha'></div></html>".into();
+            self
+        }
+    }
+
+    impl SignupExecutor for MockExecutor {
+        fn navigate(&mut self, url: &str) -> Result<(), AccountError> {
+            if self.should_fail_at == Some("navigate") {
+                return Err(AccountError::SignupFailed {
+                    step: 0,
+                    reason: "mock nav fail".into(),
+                });
+            }
+            self.navigations.push(url.to_string());
+            Ok(())
+        }
+        fn fill(&mut self, selector: &str, value: &str) -> Result<(), AccountError> {
+            self.fills.push((selector.to_string(), value.to_string()));
+            Ok(())
+        }
+        fn click(&mut self, selector: &str) -> Result<(), AccountError> {
+            self.clicks.push(selector.to_string());
+            Ok(())
+        }
+        fn wait_for(&mut self, _selector: &str, _timeout: Duration) -> Result<(), AccountError> {
+            Ok(())
+        }
+        fn wait_for_url(&mut self, _pattern: &str, _timeout: Duration) -> Result<(), AccountError> {
+            Ok(())
+        }
+        fn extract_token(&mut self, _selector: &str) -> Result<String, AccountError> {
+            Ok("mock-token-123".into())
+        }
+        fn screenshot(&mut self, _filename: &str) -> Result<(), AccountError> {
+            Ok(())
+        }
+        fn page_content(&mut self) -> Result<String, AccountError> {
+            Ok(self.page_html.clone())
+        }
+        fn notify_captcha_pause(&mut self, _message: &str) -> Result<(), AccountError> {
+            self.captcha_pauses += 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_execute_signup_flow_cloudflare() {
+        let mut mgr = AccountManager::new();
+        let mut executor = MockExecutor::new();
+        let mut vars = HashMap::new();
+        vars.insert("EMAIL".into(), "test@phantom.dev".into());
+        vars.insert("PASSWORD".into(), "hunter2".into());
+
+        let result = mgr
+            .execute_signup_flow(Provider::Cloudflare, &mut executor, &vars)
+            .unwrap();
+        assert!(result.success);
+        assert_eq!(result.steps_total, 6);
+        assert_eq!(result.steps_completed, 6);
+        // Should have navigated to cloudflare
+        assert!(executor
+            .navigations
+            .iter()
+            .any(|u| u.contains("cloudflare.com")));
+        // Should have filled email and password
+        assert!(executor.fills.iter().any(|(_, v)| v == "test@phantom.dev"));
+        assert!(executor.fills.iter().any(|(_, v)| v == "hunter2"));
+        // Should have at least 1 captcha pause (the PauseForCaptcha step)
+        assert!(executor.captcha_pauses >= 1);
+        // Should have registered credential
+        assert!(mgr.get_credential(Provider::Cloudflare).is_some());
+    }
+
+    #[test]
+    fn test_execute_signup_flow_with_auto_captcha_detection() {
+        let mut mgr = AccountManager::new();
+        let mut executor = MockExecutor::new().with_captcha_page();
+        let vars = HashMap::new();
+
+        let result = mgr
+            .execute_signup_flow(Provider::Cloudflare, &mut executor, &vars)
+            .unwrap();
+        assert!(result.success);
+        // Should have extra pauses from auto-detection (check_captcha steps scan page)
+        assert!(result.captcha_pauses >= 2); // 1 from PauseForCaptcha + 1+ from auto-detect
+    }
+
+    #[test]
+    fn test_execute_signup_flow_navigate_failure() {
+        let mut mgr = AccountManager::new();
+        let mut executor = MockExecutor::new();
+        executor.should_fail_at = Some("navigate");
+        let vars = HashMap::new();
+
+        let err = mgr.execute_signup_flow(Provider::Cloudflare, &mut executor, &vars);
+        assert!(err.is_err());
+        match err.unwrap_err() {
+            AccountError::SignupFailed { step, reason } => {
+                assert_eq!(step, 0);
+                assert!(reason.contains("navigate failed"));
+            }
+            other => panic!("expected SignupFailed, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_execute_signup_flow_no_flow_defined() {
+        let mut mgr = AccountManager::new();
+        let mut executor = MockExecutor::new();
+        let vars = HashMap::new();
+
+        // GoogleCloud has no signup flow
+        let err = mgr.execute_signup_flow(Provider::GoogleCloud, &mut executor, &vars);
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_execute_signup_flow_vercel() {
+        let mut mgr = AccountManager::new();
+        let mut executor = MockExecutor::new();
+        let mut vars = HashMap::new();
+        vars.insert("EMAIL".into(), "v@test.com".into());
+
+        let result = mgr
+            .execute_signup_flow(Provider::Vercel, &mut executor, &vars)
+            .unwrap();
+        assert!(result.success);
+        assert!(executor
+            .navigations
+            .iter()
+            .any(|u| u.contains("vercel.com")));
+    }
+
+    #[test]
+    fn test_execute_signup_flow_registers_credential() {
+        let mut mgr = AccountManager::new();
+        let mut executor = MockExecutor::new();
+        let vars = HashMap::new();
+
+        mgr.execute_signup_flow(Provider::FlyIo, &mut executor, &vars)
+            .unwrap();
+
+        // Should have registered a CliSession credential (FlyIo uses CliLogin)
+        let cred = mgr.get_credential(Provider::FlyIo).unwrap();
+        assert_eq!(cred.credential_type, CredentialType::CliSession);
+        assert!(!cred.revoked);
+
+        // Should be marked authenticated
+        assert!(mgr.get_status(Provider::FlyIo).unwrap().authenticated);
+    }
+
+    #[test]
+    fn test_signup_step_count_per_provider() {
+        // Verify each provider has a reasonable number of steps
+        let providers_and_min_steps = [
+            (Provider::Vercel, 5),
+            (Provider::Supabase, 5),
+            (Provider::Upstash, 5),
+            (Provider::Neon, 5),
+            (Provider::FlyIo, 6),
+            (Provider::Railway, 5),
+            (Provider::Render, 6),
+            (Provider::Netlify, 6),
+            (Provider::DigitalOcean, 5),
+            (Provider::Hetzner, 4),
+            (Provider::Vultr, 7),
+            (Provider::OracleCloud, 9),
+        ];
+        for (provider, min) in &providers_and_min_steps {
+            let steps = signup_steps(*provider);
+            assert!(
+                steps.len() >= *min,
+                "{:?} should have at least {} steps, got {}",
+                provider,
+                min,
+                steps.len()
+            );
+        }
     }
 }
