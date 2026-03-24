@@ -181,7 +181,7 @@ jobs:
             ## Installation
 
             ```bash
-            curl -fsSL https://raw.githubusercontent.com/benchbrex/phantom/main/install.sh | bash
+            curl -fsSL https://raw.githubusercontent.com/benchbrex-USA/BenchBrex-PHANTOM/main/install.sh | bash
             ```
 
             Or update an existing installation:
