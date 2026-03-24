@@ -1,0 +1,48 @@
+{
+  "redirects": [
+    {
+      "source": "/releases/latest/phantom-darwin-arm64",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM/releases/download/v0.1.0/phantom-0.1.0-aarch64-apple-darwin.tar.gz",
+      "statusCode": 302
+    },
+    {
+      "source": "/releases/latest/phantom-darwin-x64",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM/releases/download/v0.1.0/phantom-0.1.0-x86_64-apple-darwin.tar.gz",
+      "statusCode": 302
+    },
+    {
+      "source": "/releases/latest/phantom-darwin-arm64.sha256",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM/releases/download/v0.1.0/phantom-0.1.0-aarch64-apple-darwin.tar.gz.sha256",
+      "statusCode": 302
+    },
+    {
+      "source": "/releases/latest/phantom-darwin-x64.sha256",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM/releases/download/v0.1.0/phantom-0.1.0-x86_64-apple-darwin.tar.gz.sha256",
+      "statusCode": 302
+    },
+    {
+      "source": "/releases/latest",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM/releases/latest",
+      "statusCode": 302
+    },
+    {
+      "source": "/releases/:path*",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM/releases/:path*",
+      "statusCode": 302
+    },
+    {
+      "source": "/github",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM",
+      "statusCode": 302
+    }
+  ],
+  "headers": [
+    {
+      "source": "/install.sh",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=300" }
+      ]
+    }
+  ]
+}
