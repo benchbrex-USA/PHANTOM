@@ -14,6 +14,7 @@ use tokio::sync::RwLock;
 //  1. macOS Bridge Integration (mock subprocess)
 // ═══════════════════════════════════════════════════════════════════════════
 
+#[cfg(target_os = "macos")]
 mod macos_bridge {
     use phantom_core::macos::{
         BrowserAction, BrowserAutomation, BrowserConfig, BrowserType, ClipboardBridge,

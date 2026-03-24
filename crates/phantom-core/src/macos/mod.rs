@@ -2218,6 +2218,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn test_daemon_status_not_loaded() {
         let lm = LaunchctlManager::new();
         let status = lm.status("com.phantom.nonexistent.xyzzy.test").unwrap();
