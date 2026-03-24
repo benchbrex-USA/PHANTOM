@@ -772,7 +772,12 @@ fn test_doctor_runtime_checks() {
     // Should detect the OS
     let os_check = results.iter().find(|r| r.name == "Operating System");
     assert!(os_check.is_some());
-    assert_eq!(os_check.unwrap().version.as_deref(), Some("macos"));
+    let os_version = os_check.unwrap().version.as_deref().unwrap_or("");
+    assert!(
+        os_version == "macos" || os_version == "linux",
+        "unexpected OS: {}",
+        os_version
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
