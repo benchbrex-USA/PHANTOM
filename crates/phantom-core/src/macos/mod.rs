@@ -319,12 +319,22 @@ impl KeychainTarget {
 }
 
 /// A credential stored in or retrieved from the keychain.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct KeychainCredential {
     pub service: String,
     pub account: String,
     #[serde(skip_serializing)]
     pub password: String,
+}
+
+impl std::fmt::Debug for KeychainCredential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeychainCredential")
+            .field("service", &self.service)
+            .field("account", &self.account)
+            .field("password", &"[REDACTED]")
+            .finish()
+    }
 }
 
 /// Manages macOS Keychain access via the `security` CLI.

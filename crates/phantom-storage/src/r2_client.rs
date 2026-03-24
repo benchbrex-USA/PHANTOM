@@ -6,8 +6,10 @@
 //!
 //! Uses the aws-sdk-s3 client with R2-compatible endpoint configuration.
 
+use aws_sdk_s3::primitives::ByteStream;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use sha2::{Digest, Sha256};
+use tracing::{debug, info, warn};
 
 use crate::errors::StorageError;
 
@@ -175,11 +177,14 @@ impl BlobIndex {
 ///
 /// This client manages the local blob index and configuration.
 /// Actual S3-compatible API calls go through aws-sdk-s3 at runtime.
+/// Call `connect()` to initialize the S3 client before performing async operations.
 pub struct R2Client {
     /// Configuration
     config: R2Config,
     /// Local blob index
     index: BlobIndex,
+    /// S3 client, initialized by `connect()`.
+    s3_client: Option<aws_sdk_s3::Client>,
 }
 
 impl R2Client {
@@ -188,6 +193,7 @@ impl R2Client {
         Self {
             config,
             index: BlobIndex::new(),
+            s3_client: None,
         }
     }
 
@@ -254,6 +260,203 @@ impl R2Client {
             total_size_bytes: self.index.total_size_bytes(),
             encrypted_count: self.index.blobs.values().filter(|b| b.encrypted).count(),
         }
+    }
+
+    /// Build and store the aws-sdk-s3 client from the current R2Config.
+    ///
+    /// Must be called before any async blob operations (`put_blob`, `get_blob`, etc.).
+    pub async fn connect(&mut self) -> Result<(), StorageError> {
+        self.config.validate()?;
+
+        let credentials = aws_sdk_s3::config::Credentials::new(
+            &self.config.access_key_id,
+            &self.config.secret_access_key,
+            None,
+            None,
+            "phantom-r2",
+        );
+
+        let s3_config = aws_sdk_s3::config::Builder::new()
+            .behavior_version(aws_config::BehaviorVersion::latest())
+            .endpoint_url(&self.config.endpoint_url)
+            .region(aws_sdk_s3::config::Region::new(self.config.region.clone()))
+            .credentials_provider(credentials)
+            .force_path_style(true)
+            .build();
+
+        self.s3_client = Some(aws_sdk_s3::Client::from_conf(s3_config));
+
+        info!(
+            bucket = %self.config.bucket,
+            endpoint = %self.config.endpoint_url,
+            "R2Client connected"
+        );
+
+        Ok(())
+    }
+
+    /// Get a reference to the S3 client, returning an error if not connected.
+    fn require_client(&self) -> Result<&aws_sdk_s3::Client, StorageError> {
+        self.s3_client.as_ref().ok_or_else(|| {
+            StorageError::ConnectionFailed(
+                "S3 client not initialized — call connect() first".into(),
+            )
+        })
+    }
+
+    /// Upload a blob to R2 and register it in the local index.
+    ///
+    /// Computes SHA-256 of the data for integrity tracking.
+    /// The caller is responsible for encryption; this method uploads raw bytes.
+    pub async fn put_blob(&mut self, key: &str, data: &[u8]) -> Result<BlobMetadata, StorageError> {
+        let client = self.require_client()?.clone();
+        let full_key = self.config.full_key(key);
+
+        let mut hasher = Sha256::new();
+        hasher.update(data);
+        let plaintext_hash = hex::encode(hasher.finalize());
+
+        let data_len = data.len() as u64;
+
+        debug!(key = %full_key, size = data_len, "uploading blob to R2");
+
+        client
+            .put_object()
+            .bucket(&self.config.bucket)
+            .key(&full_key)
+            .body(ByteStream::from(data.to_vec()))
+            .content_type("application/octet-stream")
+            .send()
+            .await
+            .map_err(|e| StorageError::UploadFailed(format!("{}: {}", full_key, e)))?;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        let metadata = BlobMetadata {
+            key: key.to_string(),
+            size_bytes: data_len,
+            content_type: "application/octet-stream".into(),
+            uploaded_at: now,
+            plaintext_hash: Some(plaintext_hash),
+            encrypted: false,
+        };
+
+        self.index.register(metadata.clone());
+
+        info!(key = %full_key, size = data_len, "blob uploaded and indexed");
+
+        Ok(metadata)
+    }
+
+    /// Download a blob from R2.
+    pub async fn get_blob(&self, key: &str) -> Result<Vec<u8>, StorageError> {
+        let client = self.require_client()?;
+        let full_key = self.config.full_key(key);
+
+        debug!(key = %full_key, "downloading blob from R2");
+
+        let resp = client
+            .get_object()
+            .bucket(&self.config.bucket)
+            .key(&full_key)
+            .send()
+            .await
+            .map_err(|e| {
+                let err_str = e.to_string();
+                if err_str.contains("NoSuchKey") || err_str.contains("404") {
+                    StorageError::NotFound {
+                        key: key.to_string(),
+                    }
+                } else {
+                    StorageError::DownloadFailed(format!("{}: {}", full_key, e))
+                }
+            })?;
+
+        let data = resp
+            .body
+            .collect()
+            .await
+            .map_err(|e| StorageError::DownloadFailed(format!("body read failed: {}", e)))?
+            .into_bytes()
+            .to_vec();
+
+        debug!(key = %full_key, size = data.len(), "blob downloaded");
+
+        Ok(data)
+    }
+
+    /// Delete a blob from R2 and remove it from the local index.
+    pub async fn delete_blob(&mut self, key: &str) -> Result<(), StorageError> {
+        let client = self.require_client()?.clone();
+        let full_key = self.config.full_key(key);
+
+        debug!(key = %full_key, "deleting blob from R2");
+
+        client
+            .delete_object()
+            .bucket(&self.config.bucket)
+            .key(&full_key)
+            .send()
+            .await
+            .map_err(|e| {
+                StorageError::UploadFailed(format!("delete failed for {}: {}", full_key, e))
+            })?;
+
+        if let Some(_removed) = self.index.remove(key) {
+            debug!(key = %full_key, "blob removed from index");
+        } else {
+            warn!(key = %full_key, "blob deleted from R2 but was not in local index");
+        }
+
+        info!(key = %full_key, "blob deleted");
+
+        Ok(())
+    }
+
+    /// List blobs in R2 matching a prefix.
+    pub async fn list_blobs(&self, prefix: &str) -> Result<Vec<BlobMetadata>, StorageError> {
+        let client = self.require_client()?;
+        let full_prefix = self.config.full_key(prefix);
+
+        debug!(prefix = %full_prefix, "listing blobs from R2");
+
+        let resp = client
+            .list_objects_v2()
+            .bucket(&self.config.bucket)
+            .prefix(&full_prefix)
+            .send()
+            .await
+            .map_err(|e| {
+                StorageError::DownloadFailed(format!(
+                    "list failed for prefix {}: {}",
+                    full_prefix, e
+                ))
+            })?;
+
+        let mut results = Vec::new();
+
+        for obj in resp.contents() {
+            let obj_key = obj.key().unwrap_or_default();
+            let logical_key = obj_key
+                .strip_prefix(&self.config.key_prefix)
+                .unwrap_or(obj_key);
+
+            results.push(BlobMetadata {
+                key: logical_key.to_string(),
+                size_bytes: obj.size().unwrap_or(0) as u64,
+                content_type: "application/octet-stream".into(),
+                uploaded_at: obj.last_modified().map(|t| t.secs()).unwrap_or(0),
+                plaintext_hash: None,
+                encrypted: false,
+            });
+        }
+
+        debug!(prefix = %full_prefix, count = results.len(), "listed blobs");
+
+        Ok(results)
     }
 }
 

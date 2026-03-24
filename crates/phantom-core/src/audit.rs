@@ -155,7 +155,7 @@ impl AuditLog {
         };
 
         self.entries.push(entry);
-        self.entries.last().unwrap()
+        self.entries.last().expect("just pushed an entry")
     }
 
     /// Verify the integrity of the entire audit chain.

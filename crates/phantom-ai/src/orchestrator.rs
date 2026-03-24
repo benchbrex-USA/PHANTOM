@@ -319,6 +319,7 @@ impl AgentWorker {
                     .unwrap_or_else(|| self.role.temperature()),
             ),
             stop_sequences: None,
+            tools: None,
         };
 
         let response = {
@@ -1531,10 +1532,16 @@ Waiting for delegation."#;
                 ContentBlock {
                     block_type: "text".into(),
                     text: Some("Hello ".into()),
+                    id: None,
+                    name: None,
+                    input: None,
                 },
                 ContentBlock {
                     block_type: "text".into(),
                     text: Some("World".into()),
+                    id: None,
+                    name: None,
+                    input: None,
                 },
             ],
             model: "claude-sonnet-4-6".into(),

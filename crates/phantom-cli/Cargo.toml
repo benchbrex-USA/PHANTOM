@@ -30,3 +30,6 @@ phantom-infra = { workspace = true }
 phantom-ai = { workspace = true }
 phantom-storage = { workspace = true }
 phantom-brain = { workspace = true }
+rpassword = "7"
+sha2 = { workspace = true }
+chrono = { workspace = true }

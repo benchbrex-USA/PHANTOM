@@ -19,4 +19,5 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 sha2 = { workspace = true }
 hex = "0.4"
+rand = { workspace = true }
 phantom-crypto = { workspace = true }

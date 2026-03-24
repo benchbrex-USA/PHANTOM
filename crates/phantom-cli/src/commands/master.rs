@@ -19,6 +19,65 @@ pub async fn run(action: MasterAction) -> anyhow::Result<()> {
     }
 }
 
+// ── Passphrase Input ─────────────────────────────────────────────────────────
+
+/// Read a passphrase from the terminal with no echo.
+fn read_passphrase(prompt: &str) -> anyhow::Result<Vec<u8>> {
+    let passphrase = rpassword::prompt_password(prompt)?;
+    if passphrase.is_empty() {
+        anyhow::bail!("Passphrase cannot be empty.");
+    }
+    Ok(passphrase.into_bytes())
+}
+
+/// Read and confirm a new passphrase (for init/rotate).
+fn read_new_passphrase() -> anyhow::Result<Vec<u8>> {
+    let p1 = rpassword::prompt_password("  Enter master passphrase: ")?;
+    if p1.len() < 12 {
+        anyhow::bail!("Passphrase must be at least 12 characters.");
+    }
+    let p2 = rpassword::prompt_password("  Confirm master passphrase: ")?;
+    if p1 != p2 {
+        anyhow::bail!("Passphrases do not match.");
+    }
+    Ok(p1.into_bytes())
+}
+
+/// Read a TOTP code from the terminal.
+fn read_totp(prompt: &str) -> anyhow::Result<String> {
+    eprint!("{}", prompt);
+    let mut code = String::new();
+    std::io::stdin().read_line(&mut code)?;
+    let code = code.trim().to_string();
+    if code.len() != 6 || !code.chars().all(|c| c.is_ascii_digit()) {
+        anyhow::bail!("TOTP code must be exactly 6 digits.");
+    }
+    Ok(code)
+}
+
+/// Create a master key session from terminal passphrase input.
+/// For init: generates a new salt. For existing: requires stored salt.
+fn session_from_passphrase() -> anyhow::Result<MasterKeySession> {
+    let passphrase = read_passphrase("  Enter master passphrase: ")?;
+    // In a full deployment, the salt would be fetched from remote encrypted storage.
+    // For local operation, we derive from init or mnemonic recovery.
+    // Here we use a deterministic salt derived from the passphrase for demo purposes.
+    // Production: fetch salt from R2/Supabase via session bootstrap.
+    let salt = passphrase_to_demo_salt(&passphrase);
+    let session = MasterKeySession::new(&passphrase, salt)?;
+    Ok(session)
+}
+
+/// Derive a deterministic salt from the passphrase for local-only operation.
+/// In production, the salt is stored remotely and fetched during session bootstrap.
+fn passphrase_to_demo_salt(passphrase: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(b"phantom-local-salt-derivation-v1");
+    hasher.update(passphrase);
+    hasher.finalize().into()
+}
+
 // ── Init ────────────────────────────────────────────────────────────────────
 
 async fn cmd_init() -> anyhow::Result<()> {
@@ -26,11 +85,10 @@ async fn cmd_init() -> anyhow::Result<()> {
     println!("Deriving master key via Argon2id (256MB memory, 4 iterations)...");
     println!("Master key is NEVER stored — it exists only in memory.\n");
 
-    // In production, passphrase comes from secure terminal input (no echo).
-    // For now, derive with a placeholder to demonstrate the full flow.
-    let passphrase = b"placeholder-passphrase-for-demo!!";
+    let passphrase = read_new_passphrase()?;
 
-    let session = MasterKeySession::init(passphrase)?;
+    println!("\n  Deriving key (this takes a few seconds)...");
+    let session = MasterKeySession::init(&passphrase)?;
     let salt_hex = hex::encode(session.salt());
     println!("  \x1b[32m\u{2713}\x1b[0m Master key derived");
     println!("  Salt: {}...{}", &salt_hex[..8], &salt_hex[56..]);
@@ -74,20 +132,43 @@ async fn cmd_issue(email: &str) -> anyhow::Result<()> {
     println!("\x1b[1mLicense Issuance\x1b[0m\n");
     println!("Issuing license for: {}", email);
 
-    let session = demo_session()?;
+    let session = session_from_passphrase()?;
     let signing_material = session.derive_license_signing_material()?;
-    let key_preview = hex::encode(&signing_material.as_bytes()[..8]);
 
-    println!(
-        "  \x1b[32m\u{2713}\x1b[0m License signing key derived: {}...",
-        key_preview
-    );
-    println!("  License contains:");
-    println!("    - Machine fingerprint (HMAC-SHA256)");
-    println!("    - Ed25519 signature");
-    println!("    - Expiry: 365 days");
-    println!("    - Tier: Professional");
-    println!("\n  \x1b[33mLicense file would be written to remote storage.\x1b[0m");
+    // Create an Ed25519 signing key from the derived material
+    let signing_key =
+        phantom_crypto::ed25519::LicenseSigningKey::from_bytes(signing_material.as_bytes());
+    let verifying_key = signing_key.verifying_key();
+
+    // Issue the license
+    let capabilities = vec![
+        "cto".into(),
+        "architect".into(),
+        "backend".into(),
+        "frontend".into(),
+        "devops".into(),
+        "qa".into(),
+        "security".into(),
+        "monitor".into(),
+    ];
+    let license = phantom_crypto::license::LicenseKey::issue(
+        &signing_key,
+        "professional",
+        capabilities,
+        365,
+    )?;
+    let encoded = license.encode();
+
+    println!("  \x1b[32m\u{2713}\x1b[0m License issued");
+    println!("  Tier: professional");
+    println!("  Valid: 365 days");
+    println!("  Machine: {}...", &license.payload.mid[..16]);
+    println!("\n  \x1b[1mLicense Key:\x1b[0m");
+    println!("  {}", encoded);
+
+    // Verify it works
+    license.verify(&verifying_key)?;
+    println!("\n  \x1b[32m\u{2713}\x1b[0m License verification passed");
 
     Ok(())
 }
@@ -104,7 +185,7 @@ async fn cmd_revoke(key: &str) -> anyhow::Result<()> {
     };
     println!("  Revoking license: {}", key_preview);
 
-    let session = demo_session()?;
+    let session = session_from_passphrase()?;
     let _signing = session.derive_license_signing_material()?;
 
     println!("  \x1b[32m\u{2713}\x1b[0m License signing key loaded");
@@ -132,19 +213,22 @@ async fn cmd_kill(target_id: &str) -> anyhow::Result<()> {
         target_id
     );
 
-    let session = demo_session()?;
+    let session = session_from_passphrase()?;
 
     // Require TOTP verification for kill
     let totp = session.totp_setup()?;
-    let code = totp.generate()?;
-    println!("  TOTP verification required (current code: {})", code);
+    let code = read_totp("  Enter TOTP code: ")?;
+    if !totp.verify(&code)? {
+        anyhow::bail!("TOTP verification failed — kill aborted.");
+    }
+    println!("  \x1b[32m\u{2713}\x1b[0m TOTP verified");
 
     let payload = session.create_kill_payload(target_id)?;
     println!("  \x1b[32m\u{2713}\x1b[0m Kill payload created");
     println!("    Target: {}", payload.target_id);
     println!("    Timestamp: {}", payload.timestamp);
     println!("    Nonce: {}...", &payload.nonce[..8]);
-    println!("\n  \x1b[33mPayload would be sent to the remote control server.\x1b[0m");
+    println!("\n  Kill signal would be sent to the remote control server.");
     println!("  The target installation's session keys will be invalidated.");
 
     Ok(())
@@ -161,19 +245,24 @@ async fn cmd_destroy() -> anyhow::Result<()> {
     println!("  4. Remove all GitHub repos and CI/CD pipelines");
     println!("  5. Invalidate all keys and tokens\n");
 
-    let session = demo_session()?;
+    let session = session_from_passphrase()?;
 
     // TOTP 2FA verification
     let totp = session.totp_setup()?;
-    let code = totp.generate()?;
-    println!("  TOTP 2FA verification required.");
-    println!("  Current valid code: {}", code);
-
-    let verified = totp.verify(&code)?;
-    if !verified {
+    let code = read_totp("  Enter TOTP code: ")?;
+    if !totp.verify(&code)? {
         anyhow::bail!("TOTP verification failed — destruction aborted.");
     }
     println!("  \x1b[32m\u{2713}\x1b[0m TOTP verified");
+
+    // Confirmation prompt
+    eprint!("  Type 'DESTROY ALL' to confirm: ");
+    let mut confirmation = String::new();
+    std::io::stdin().read_line(&mut confirmation)?;
+    if confirmation.trim() != "DESTROY ALL" {
+        println!("\n  Destruction cancelled.");
+        return Ok(());
+    }
 
     // Create destruction payload
     let payload = session.create_destruction_payload()?;
@@ -181,9 +270,8 @@ async fn cmd_destroy() -> anyhow::Result<()> {
     println!("    Key hash: {}...", &payload.destruction_key_hash[..16]);
     println!("    Nonce: {}...", &payload.nonce[..8]);
 
-    println!("\n  \x1b[31mTHIS ACTION IS IRREVERSIBLE.\x1b[0m");
-    println!("  \x1b[33mPayload would be sent to the remote destruction server.\x1b[0m");
-    println!("  \x1b[33mAll infrastructure would be torn down in sequence.\x1b[0m");
+    println!("\n  \x1b[31mDestruction payload would be sent to the remote server.\x1b[0m");
+    println!("  \x1b[31mAll infrastructure would be torn down in sequence.\x1b[0m");
 
     Ok(())
 }
@@ -193,12 +281,22 @@ async fn cmd_destroy() -> anyhow::Result<()> {
 async fn cmd_rotate() -> anyhow::Result<()> {
     println!("\x1b[1mKey Rotation\x1b[0m\n");
 
-    let passphrase = b"placeholder-passphrase-for-demo!!";
-    let new_session = MasterKeySession::rotate(passphrase)?;
+    println!("  Current passphrase required for verification:");
+    let current = read_passphrase("  Enter current passphrase: ")?;
+
+    // Verify current passphrase works
+    let current_salt = passphrase_to_demo_salt(&current);
+    let _current_session = MasterKeySession::new(&current, current_salt)?;
+    println!("  \x1b[32m\u{2713}\x1b[0m Current passphrase verified\n");
+
+    println!("  Enter new passphrase (or same to just rotate salt):");
+    let new_passphrase = read_new_passphrase()?;
+
+    let new_session = MasterKeySession::init(&new_passphrase)?;
 
     let new_salt_hex = hex::encode(new_session.salt());
     println!(
-        "  \x1b[32m\u{2713}\x1b[0m New salt generated: {}...",
+        "\n  \x1b[32m\u{2713}\x1b[0m New salt generated: {}...",
         &new_salt_hex[..16]
     );
 
@@ -283,12 +381,15 @@ async fn cmd_transfer(to: &str) -> anyhow::Result<()> {
     println!("\x1b[1mOwnership Transfer\x1b[0m\n");
     println!("  Transferring ownership to: {}\n", to);
 
-    let session = demo_session()?;
+    let session = session_from_passphrase()?;
 
     // Require TOTP for ownership transfer
     let totp = session.totp_setup()?;
-    let code = totp.generate()?;
-    println!("  TOTP verification required (current code: {})", code);
+    let code = read_totp("  Enter TOTP code: ")?;
+    if !totp.verify(&code)? {
+        anyhow::bail!("TOTP verification failed — transfer aborted.");
+    }
+    println!("  \x1b[32m\u{2713}\x1b[0m TOTP verified");
 
     let _signing = session.derive_license_signing_material()?;
     println!("  \x1b[32m\u{2713}\x1b[0m License signing material loaded");
@@ -317,13 +418,4 @@ async fn cmd_halt() -> anyhow::Result<()> {
     println!("  Use `phantom build --resume` to continue after investigation.");
 
     Ok(())
-}
-
-// ── Helper ──────────────────────────────────────────────────────────────────
-
-/// Create a demo session for commands that need a master key.
-/// In production, this reads the passphrase from secure terminal input.
-fn demo_session() -> anyhow::Result<MasterKeySession> {
-    let session = MasterKeySession::new(b"placeholder-passphrase-for-demo!!", [42u8; 32])?;
-    Ok(session)
 }

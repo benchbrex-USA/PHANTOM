@@ -428,7 +428,10 @@ impl TaskGraph {
         // Calculate depth for each task
         let mut depth: HashMap<String, usize> = HashMap::new();
         for id in &topo {
-            let task = self.tasks.get(id).unwrap();
+            let task = self
+                .tasks
+                .get(id)
+                .ok_or_else(|| CoreError::TaskNotFound(id.clone()))?;
             let max_dep_depth = task
                 .dependencies
                 .iter()

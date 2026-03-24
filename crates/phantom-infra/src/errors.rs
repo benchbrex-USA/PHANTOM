@@ -35,6 +35,9 @@ pub enum InfraError {
     #[error("authentication required for {provider}")]
     AuthRequired { provider: String },
 
+    #[error("provider error: {0}")]
+    ProviderError(String),
+
     #[error("HTTP error: {0}")]
     Http(String),
 

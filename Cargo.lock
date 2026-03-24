@@ -2667,6 +2667,7 @@ dependencies = [
  "futures-timer",
  "libp2p-core",
  "libp2p-identity",
+ "libp2p-swarm-derive",
  "lru 0.12.5",
  "multistream-select",
  "once_cell",
@@ -2676,6 +2677,18 @@ dependencies = [
  "tracing",
  "void",
  "web-time",
+]
+
+[[package]]
+name = "libp2p-swarm-derive"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "206e0aa0ebe004d778d79fb0966aa0de996c19894e2c0605ba2f8524dd4443d8"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -3212,6 +3225,7 @@ name = "phantom"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "crossterm",
  "hex",
@@ -3224,8 +3238,10 @@ dependencies = [
  "phantom-storage",
  "ratatui",
  "reqwest",
+ "rpassword",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
  "tracing",
@@ -3340,6 +3356,7 @@ name = "phantom-integration-tests"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "hex",
  "phantom-ai",
  "phantom-brain",
  "phantom-core",
@@ -3347,6 +3364,7 @@ dependencies = [
  "phantom-infra",
  "phantom-net",
  "phantom-storage",
+ "rand 0.8.5",
  "serde_json",
  "tokio",
  "tracing",
@@ -3363,6 +3381,7 @@ dependencies = [
  "futures",
  "libp2p",
  "phantom-crypto",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3381,6 +3400,7 @@ dependencies = [
  "aws-sdk-s3",
  "hex",
  "phantom-crypto",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sha2",
@@ -3874,6 +3894,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpassword"
+version = "7.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66d4c8b64f049c6721ec8ccec37ddfc3d641c4a7fca57e8f2a89de509c73df39"
+dependencies = [
+ "libc",
+ "rtoolbox",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "rtnetlink"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3889,6 +3920,16 @@ dependencies = [
  "nix",
  "thiserror 1.0.69",
  "tokio",
+]
+
+[[package]]
+name = "rtoolbox"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7cc970b249fbe527d6e02e0a227762c9108b2f49d81094fe357ffc6d14d7f6f"
+dependencies = [
+ "libc",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

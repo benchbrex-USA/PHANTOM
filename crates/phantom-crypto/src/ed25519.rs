@@ -12,6 +12,12 @@ pub struct LicenseSigningKey {
     signing_key: SigningKey,
 }
 
+impl std::fmt::Debug for LicenseSigningKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[REDACTED LicenseSigningKey]")
+    }
+}
+
 impl Drop for LicenseSigningKey {
     fn drop(&mut self) {
         let mut bytes = self.signing_key.to_bytes();
@@ -59,6 +65,11 @@ pub struct LicenseVerifyingKey {
 }
 
 impl LicenseVerifyingKey {
+    /// Create from an ed25519_dalek VerifyingKey directly.
+    pub fn from_dalek(verifying_key: VerifyingKey) -> Self {
+        Self { verifying_key }
+    }
+
     /// Restore from raw public key bytes (32 bytes).
     pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, CryptoError> {
         let verifying_key = VerifyingKey::from_bytes(bytes)

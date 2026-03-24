@@ -15,6 +15,7 @@ use crate::CryptoError;
 
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+use zeroize::Zeroize;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -140,12 +141,38 @@ impl MasterKeySession {
     }
 }
 
+impl Drop for MasterKeySession {
+    fn drop(&mut self) {
+        // master_key (DerivedKey) auto-zeroizes via its own Drop impl.
+        // We must also zeroize the salt to prevent residual key-derivation material.
+        self.salt.zeroize();
+    }
+}
+
+impl std::fmt::Debug for MasterKeySession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[REDACTED MasterKeySession]")
+    }
+}
+
 // ── TOTP 2FA ────────────────────────────────────────────────────────────────
 
 /// TOTP configuration derived from the master key.
 /// Uses HMAC-SHA256 with 6-digit codes and 30-second time steps.
 pub struct TotpConfig {
     secret: [u8; 32],
+}
+
+impl Drop for TotpConfig {
+    fn drop(&mut self) {
+        self.secret.zeroize();
+    }
+}
+
+impl std::fmt::Debug for TotpConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[REDACTED TotpConfig]")
+    }
 }
 
 impl TotpConfig {
@@ -301,6 +328,24 @@ impl MnemonicBackup {
 
     pub fn word_count(&self) -> usize {
         self.phrase.split_whitespace().count()
+    }
+}
+
+impl Drop for MnemonicBackup {
+    fn drop(&mut self) {
+        self.salt.zeroize();
+        // Zeroize the phrase string's backing allocation
+        // SAFETY: phrase is a String; we zeroize its bytes then clear.
+        unsafe {
+            let bytes = self.phrase.as_mut_vec();
+            bytes.zeroize();
+        }
+    }
+}
+
+impl std::fmt::Debug for MnemonicBackup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[REDACTED MnemonicBackup]")
     }
 }
 

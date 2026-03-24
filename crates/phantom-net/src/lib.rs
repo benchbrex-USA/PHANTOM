@@ -17,6 +17,8 @@ pub mod errors;
 pub mod mesh;
 pub mod peer;
 pub mod protocol;
+pub mod relay;
+pub mod swarm;
 pub mod sync;
 pub mod transport;
 
@@ -26,5 +28,7 @@ pub use errors::NetError;
 pub use mesh::{MeshEvent, MeshNetwork, MeshStatus};
 pub use peer::{PeerInfo, PeerState, PeerTable};
 pub use protocol::{MessageKind, WireMessage, PROTOCOL_VERSION};
+pub use relay::{RelayClient, RelayConfig, RelayDiagnostics, RelayState};
+pub use swarm::{build_swarm, PhantomBehaviour};
 pub use sync::{CrdtSync, SyncStatus};
 pub use transport::QuicTransport;

@@ -96,6 +96,8 @@ pub struct CompletionRequest {
     pub temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_sequences: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<serde_json::Value>>,
 }
 
 /// Response from the Anthropic Messages API.
@@ -111,11 +113,21 @@ pub struct CompletionResponse {
     pub usage: UsageInfo,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentBlock {
     #[serde(rename = "type")]
     pub block_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    /// Present on `tool_use` blocks: the tool invocation ID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// Present on `tool_use` blocks: the tool name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Present on `tool_use` blocks: the tool input parameters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -273,6 +285,7 @@ impl AnthropicClient {
             max_tokens: role.max_tokens(),
             temperature: Some(role.temperature()),
             stop_sequences: None,
+            tools: None,
         };
 
         let response = self.complete(&request, role.id()).await?;
@@ -330,6 +343,203 @@ impl AnthropicClient {
             estimated_output_cost_usd: output_cost,
             estimated_total_cost_usd: input_cost + output_cost,
         }
+    }
+}
+
+// ── Streaming SSE ────────────────────────────────────────────────────────
+
+/// A streaming event from the Anthropic Messages API (SSE).
+#[derive(Debug, Clone)]
+pub enum StreamEvent {
+    /// message_start — contains the initial message metadata
+    MessageStart { id: String, model: String },
+    /// content_block_start — a new content block is beginning
+    ContentBlockStart { index: usize, block_type: String },
+    /// content_block_delta — incremental text within a content block
+    ContentDelta { index: usize, text: String },
+    /// content_block_stop
+    ContentBlockStop { index: usize },
+    /// message_delta — stop_reason and usage update
+    MessageDelta {
+        stop_reason: Option<String>,
+        output_tokens: u64,
+    },
+    /// message_stop
+    MessageStop,
+    /// ping (keepalive)
+    Ping,
+    /// Unrecognized event type
+    Unknown { event_type: String },
+}
+
+/// Callback type for stream events.
+pub type StreamCallback = Box<dyn Fn(StreamEvent) + Send + Sync>;
+
+/// Accumulated result from a streaming completion.
+#[derive(Debug, Clone)]
+pub struct StreamResult {
+    pub id: String,
+    pub model: String,
+    pub text: String,
+    pub stop_reason: Option<String>,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+}
+
+impl AnthropicClient {
+    /// Stream a completion request, calling the callback for each SSE event.
+    /// Returns the accumulated result when the stream completes.
+    pub async fn stream_complete(
+        &mut self,
+        request: &CompletionRequest,
+        agent_id: &str,
+        on_event: Option<StreamCallback>,
+    ) -> Result<StreamResult, AiError> {
+        let stream_body = serde_json::json!({
+            "model": request.model,
+            "messages": request.messages,
+            "system": request.system,
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+            "stop_sequences": request.stop_sequences,
+            "stream": true,
+        });
+
+        let resp = self
+            .http
+            .post(format!("{API_BASE}/messages"))
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", API_VERSION)
+            .header("content-type", "application/json")
+            .header("accept", "text/event-stream")
+            .json(&stream_body)
+            .send()
+            .await?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            if status.as_u16() == 429 {
+                return Err(AiError::RateLimited {
+                    retry_after_ms: 1000,
+                });
+            }
+            if status.as_u16() == 529 {
+                return Err(AiError::RateLimited {
+                    retry_after_ms: 5000,
+                });
+            }
+            return Err(AiError::RequestFailed(format!("HTTP {}: {}", status, body)));
+        }
+
+        // Parse the SSE stream
+        let body = resp.text().await?;
+        let mut result = StreamResult {
+            id: String::new(),
+            model: String::new(),
+            text: String::new(),
+            stop_reason: None,
+            input_tokens: 0,
+            output_tokens: 0,
+        };
+
+        let mut current_event_type = String::new();
+        for line in body.lines() {
+            if let Some(event_type) = line.strip_prefix("event: ") {
+                current_event_type = event_type.trim().to_string();
+                continue;
+            }
+
+            let data = match line.strip_prefix("data: ") {
+                Some(d) => d,
+                None => continue,
+            };
+
+            let event = match current_event_type.as_str() {
+                "message_start" => {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
+                        let msg = &v["message"];
+                        result.id = msg["id"].as_str().unwrap_or("").to_string();
+                        result.model = msg["model"].as_str().unwrap_or("").to_string();
+                        if let Some(usage) = msg.get("usage") {
+                            result.input_tokens = usage["input_tokens"].as_u64().unwrap_or(0);
+                        }
+                        StreamEvent::MessageStart {
+                            id: result.id.clone(),
+                            model: result.model.clone(),
+                        }
+                    } else {
+                        continue;
+                    }
+                }
+                "content_block_start" => {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
+                        let index = v["index"].as_u64().unwrap_or(0) as usize;
+                        let block_type = v["content_block"]["type"]
+                            .as_str()
+                            .unwrap_or("text")
+                            .to_string();
+                        StreamEvent::ContentBlockStart { index, block_type }
+                    } else {
+                        continue;
+                    }
+                }
+                "content_block_delta" => {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
+                        let index = v["index"].as_u64().unwrap_or(0) as usize;
+                        let text = v["delta"]["text"].as_str().unwrap_or("").to_string();
+                        result.text.push_str(&text);
+                        StreamEvent::ContentDelta { index, text }
+                    } else {
+                        continue;
+                    }
+                }
+                "content_block_stop" => {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
+                        let index = v["index"].as_u64().unwrap_or(0) as usize;
+                        StreamEvent::ContentBlockStop { index }
+                    } else {
+                        continue;
+                    }
+                }
+                "message_delta" => {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
+                        let stop_reason = v["delta"]["stop_reason"].as_str().map(|s| s.to_string());
+                        let output_tokens = v["usage"]["output_tokens"].as_u64().unwrap_or(0);
+                        result.stop_reason = stop_reason.clone();
+                        result.output_tokens = output_tokens;
+                        StreamEvent::MessageDelta {
+                            stop_reason,
+                            output_tokens,
+                        }
+                    } else {
+                        continue;
+                    }
+                }
+                "message_stop" => StreamEvent::MessageStop,
+                "ping" => StreamEvent::Ping,
+                other => StreamEvent::Unknown {
+                    event_type: other.to_string(),
+                },
+            };
+
+            if let Some(ref cb) = on_event {
+                cb(event);
+            }
+        }
+
+        // Track token usage
+        let usage = self.token_usage.entry(agent_id.to_string()).or_default();
+        usage.record(result.input_tokens, result.output_tokens);
+
+        debug!(
+            agent = agent_id,
+            input_tokens = result.input_tokens,
+            output_tokens = result.output_tokens,
+            "streaming completion finished"
+        );
+
+        Ok(result)
     }
 }
 
@@ -393,6 +603,7 @@ mod tests {
             max_tokens: 1024,
             temperature: Some(0.1),
             stop_sequences: None,
+            tools: None,
         };
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["model"], "claude-sonnet-4-6");
@@ -462,5 +673,35 @@ mod tests {
 
         client.reset_usage();
         assert_eq!(client.total_tokens_used(), 0);
+    }
+
+    #[test]
+    fn test_stream_event_variants() {
+        let event = StreamEvent::ContentDelta {
+            index: 0,
+            text: "Hello ".to_string(),
+        };
+        assert!(matches!(event, StreamEvent::ContentDelta { .. }));
+
+        let event = StreamEvent::MessageStop;
+        assert!(matches!(event, StreamEvent::MessageStop));
+
+        let event = StreamEvent::Ping;
+        assert!(matches!(event, StreamEvent::Ping));
+    }
+
+    #[test]
+    fn test_stream_result() {
+        let result = StreamResult {
+            id: "msg_123".into(),
+            model: "claude-sonnet-4-6".into(),
+            text: "Hello world".into(),
+            stop_reason: Some("end_turn".into()),
+            input_tokens: 100,
+            output_tokens: 50,
+        };
+        assert_eq!(result.text, "Hello world");
+        assert_eq!(result.input_tokens, 100);
+        assert_eq!(result.stop_reason, Some("end_turn".into()));
     }
 }

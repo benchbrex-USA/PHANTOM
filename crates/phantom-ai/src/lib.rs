@@ -11,6 +11,7 @@ pub mod context;
 pub mod errors;
 pub mod orchestrator;
 pub mod prompts;
+pub mod tools;
 
 pub use agents::{AgentConfig, AgentRole, ALL_ROLES};
 pub use claude_md::{
@@ -18,7 +19,8 @@ pub use claude_md::{
     GeneratedClaudeMd, TemplateVars,
 };
 pub use client::{
-    AnthropicClient, CompletionRequest, CompletionResponse, CostEstimate, Message, TokenUsage,
+    AnthropicClient, CompletionRequest, CompletionResponse, CostEstimate, Message, StreamCallback,
+    StreamEvent, StreamResult, TokenUsage,
 };
 pub use context::{ContextManager, ContextUsage, KnowledgeChunk};
 pub use errors::AiError;
@@ -27,3 +29,7 @@ pub use orchestrator::{
     OrchestratorHandle, OrchestratorUsage, PipelineBridge, PipelineTaskResult, TaskRequest,
 };
 pub use prompts::{agent_system_prompt, task_prompt};
+pub use tools::{
+    execute_tool, execute_tool_calls, parse_tool_calls, ToolCall, ToolDefinition, ToolRegistry,
+    ToolResult,
+};

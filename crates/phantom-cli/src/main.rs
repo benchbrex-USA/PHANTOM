@@ -163,6 +163,52 @@ enum MasterAction {
     Halt,
 }
 
+/// Check for a valid license before executing commands.
+/// Returns Ok(()) if:
+///   - The command is `activate` or `doctor` (always allowed)
+///   - PHANTOM_LICENSE env var is set and contains a valid, non-expired license
+fn check_license(command: &Commands) -> anyhow::Result<()> {
+    // These commands are always allowed without a license
+    if matches!(command, Commands::Activate { .. } | Commands::Doctor) {
+        return Ok(());
+    }
+
+    let key_str = match std::env::var("PHANTOM_LICENSE") {
+        Ok(k) if !k.is_empty() => k,
+        _ => {
+            anyhow::bail!(
+                "No license found. Set PHANTOM_LICENSE or run:\n  \
+                 phantom activate --key <YOUR_KEY>"
+            );
+        }
+    };
+
+    // Decode and verify the license
+    let license = phantom_crypto::license::LicenseKey::decode(&key_str)
+        .map_err(|e| anyhow::anyhow!("Invalid license: {}", e))?;
+
+    // Check expiration
+    let now = chrono::Utc::now().timestamp();
+    if now > license.payload.exp {
+        anyhow::bail!("License expired. Please renew your license.");
+    }
+
+    // Verify machine fingerprint
+    let ids = phantom_crypto::fingerprint::collect_machine_identifiers();
+    let salt = b"phantom-license-fingerprint-salt-v1";
+    let current_fp = ids.fingerprint(salt)?;
+    let current_mid = hex::encode(current_fp);
+
+    if current_mid != license.payload.mid {
+        anyhow::bail!(
+            "License is bound to a different machine.\n  \
+             Re-activate on this machine with: phantom activate --key <YOUR_KEY>"
+        );
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize tracing
@@ -174,6 +220,9 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cli = Cli::parse();
+
+    // License gate: verify before executing any gated command
+    check_license(&cli.command)?;
 
     match cli.command {
         Commands::Activate { key } => commands::activate::run(&key).await,
