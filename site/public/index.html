@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phantom — Autonomous AI Engineering System</title>
+  <style>
+    :root { --bg: #0a0a0a; --fg: #e0e0e0; --accent: #6366f1; --dim: #666; --code-bg: #1a1a2e; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace; background: var(--bg); color: var(--fg); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 4rem 2rem; }
+    .hero { max-width: 640px; text-align: center; }
+    h1 { font-size: 2.5rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.5rem; }
+    h1 span { color: var(--accent); }
+    .tagline { color: var(--dim); font-size: 1rem; margin-bottom: 3rem; }
+    .install-block { background: var(--code-bg); border: 1px solid #2a2a4a; border-radius: 8px; padding: 1.5rem 2rem; text-align: left; width: 100%; margin-bottom: 2rem; position: relative; }
+    .install-block code { color: #a5b4fc; font-size: 0.9rem; white-space: pre; }
+    .install-block .prompt { color: var(--accent); }
+    .copy-btn { position: absolute; top: 0.75rem; right: 0.75rem; background: #2a2a4a; border: none; color: var(--dim); padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 0.75rem; }
+    .copy-btn:hover { color: var(--fg); background: #3a3a5a; }
+    .links { display: flex; gap: 1.5rem; justify-content: center; margin-bottom: 3rem; }
+    .links a { color: var(--accent); text-decoration: none; font-size: 0.85rem; border-bottom: 1px solid transparent; }
+    .links a:hover { border-bottom-color: var(--accent); }
+    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; width: 100%; max-width: 640px; margin-bottom: 3rem; }
+    .feature { background: var(--code-bg); border: 1px solid #1a1a3a; border-radius: 6px; padding: 1rem; }
+    .feature h3 { font-size: 0.8rem; color: var(--accent); margin-bottom: 0.3rem; font-weight: 600; }
+    .feature p { font-size: 0.75rem; color: var(--dim); line-height: 1.4; }
+    footer { color: #333; font-size: 0.7rem; margin-top: auto; padding-top: 2rem; }
+    @media (max-width: 500px) { .features { grid-template-columns: 1fr; } h1 { font-size: 1.8rem; } }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <h1><span>phantom</span></h1>
+    <p class="tagline">Autonomous AI engineering system. 8 agents. Zero footprint. One command.</p>
+
+    <div class="install-block">
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('curl -fsSL https://phantom.benchbrex.com/install.sh | sh')">copy</button>
+      <code><span class="prompt">$</span> curl -fsSL https://phantom.benchbrex.com/install.sh | sh</code>
+    </div>
+
+    <div class="links">
+      <a href="https://github.com/benchbrex-USA/BenchBrex-PHANTOM">GitHub</a>
+      <a href="https://github.com/benchbrex-USA/BenchBrex-PHANTOM/releases/latest">Releases</a>
+      <a href="https://github.com/benchbrex-USA/BenchBrex-PHANTOM/blob/main/docs/PHANTOM_ARCHITECTURE_FRAMEWORK_v2.md">Architecture</a>
+      <a href="https://github.com/benchbrex-USA/BenchBrex-PHANTOM/blob/main/docs/SECURITY.md">Security</a>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <h3>8 AI Agents</h3>
+      <p>Architect, Frontend, Backend, Database, DevOps, Testing, Security, Monitor — each with scoped permissions.</p>
+    </div>
+    <div class="feature">
+      <h3>Zero Footprint</h3>
+      <p>No local disk state. All data AES-256-GCM encrypted in remote storage. Kill the process, leave no trace.</p>
+    </div>
+    <div class="feature">
+      <h3>Self-Provisioning</h3>
+      <p>Finds and binds to free-tier infrastructure autonomously. Supabase, Vercel, Cloudflare, Fly, Neon, Oracle.</p>
+    </div>
+    <div class="feature">
+      <h3>License-Gated</h3>
+      <p>Ed25519-signed base62 license tokens. Per-agent key hierarchy with HKDF-SHA256 derivation.</p>
+    </div>
+  </div>
+
+  <footer>&copy; 2024-2026 Parth Patel / BenchBrex. All rights reserved.</footer>
+</body>
+</html>

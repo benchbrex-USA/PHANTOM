@@ -1,0 +1,30 @@
+{
+  "buildCommand": null,
+  "outputDirectory": "public",
+  "headers": [
+    {
+      "source": "/install.sh",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=300" }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/releases/latest",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM/releases/latest",
+      "statusCode": 302
+    },
+    {
+      "source": "/releases/:path*",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM/releases/:path*",
+      "statusCode": 302
+    },
+    {
+      "source": "/github",
+      "destination": "https://github.com/benchbrex-USA/BenchBrex-PHANTOM",
+      "statusCode": 302
+    }
+  ]
+}
