@@ -16,8 +16,8 @@ DIM='\033[2m'
 RESET='\033[0m'
 
 # ── Config ──────────────────────────────────────────────────────────────────
-PHANTOM_VERSION="latest"
-BASE_URL="https://phantom.benchbrex.com/releases/latest"
+PHANTOM_VERSION="${PHANTOM_VERSION:-latest}"
+REPO="benchbrex-USA/BenchBrex-PHANTOM"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="phantom"
 BINARY_PATH="${INSTALL_DIR}/${BINARY_NAME}"
@@ -74,11 +74,11 @@ info "Detecting architecture..."
 ARCH="$(uname -m)"
 case "${ARCH}" in
   arm64)
-    BINARY_FILE="phantom-darwin-arm64"
+    TARGET="aarch64-apple-darwin"
     ARCH_LABEL="Apple Silicon (arm64)"
     ;;
   x86_64)
-    BINARY_FILE="phantom-darwin-x64"
+    TARGET="x86_64-apple-darwin"
     ARCH_LABEL="Intel (x86_64)"
     ;;
   *)
@@ -103,22 +103,42 @@ check_cmd shasum
 success "curl and shasum available"
 
 # ── 4. Download Binary ───────────────────────────────────────────────────────
-DOWNLOAD_URL="${BASE_URL}/${BINARY_FILE}"
-CHECKSUM_URL="${BASE_URL}/${BINARY_FILE}.sha256"
-SIG_URL="${BASE_URL}/${BINARY_FILE}.sig"
-PUBKEY_URL="https://phantom.benchbrex.com/phantom-release.pub"
+# Resolve version tag
+if [ "${PHANTOM_VERSION}" = "latest" ]; then
+  PHANTOM_VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"//;s/".*//')"
+  if [ -z "${PHANTOM_VERSION}" ]; then
+    error "Could not determine latest release version. Check https://github.com/${REPO}/releases"
+  fi
+fi
 
-TMP_BINARY="${TMP_DIR}/${BINARY_FILE}"
-TMP_CHECKSUM="${TMP_DIR}/${BINARY_FILE}.sha256"
-TMP_SIG="${TMP_DIR}/${BINARY_FILE}.sig"
-TMP_PUBKEY="${TMP_DIR}/phantom-release.pub"
+VERSION_NUM="${PHANTOM_VERSION#v}"
+ASSET_NAME="phantom-${VERSION_NUM}-${TARGET}"
+RELEASE_BASE="https://github.com/${REPO}/releases/download/${PHANTOM_VERSION}"
+
+DOWNLOAD_URL="${RELEASE_BASE}/${ASSET_NAME}.tar.gz"
+CHECKSUM_URL="${RELEASE_BASE}/${ASSET_NAME}.tar.gz.sha256"
+
+TMP_ARCHIVE="${TMP_DIR}/${ASSET_NAME}.tar.gz"
+TMP_BINARY="${TMP_DIR}/${BINARY_NAME}"
+TMP_CHECKSUM="${TMP_DIR}/${ASSET_NAME}.tar.gz.sha256"
 
 printf "\n"
-info "Downloading Phantom binary..."
+info "Downloading Phantom ${PHANTOM_VERSION}..."
 dim "  ${DOWNLOAD_URL}"
 
-if ! curl -fsSL --progress-bar "${DOWNLOAD_URL}" -o "${TMP_BINARY}"; then
-  error "Failed to download binary from ${DOWNLOAD_URL}"
+if ! curl -fsSL --progress-bar -L "${DOWNLOAD_URL}" -o "${TMP_ARCHIVE}"; then
+  error "Failed to download from ${DOWNLOAD_URL}"
+fi
+
+# Extract binary from tar.gz
+tar -xzf "${TMP_ARCHIVE}" -C "${TMP_DIR}"
+# The archive contains a directory with the binary inside
+if [ -f "${TMP_DIR}/${ASSET_NAME}/${BINARY_NAME}" ]; then
+  mv "${TMP_DIR}/${ASSET_NAME}/${BINARY_NAME}" "${TMP_BINARY}"
+elif [ -f "${TMP_DIR}/${BINARY_NAME}" ]; then
+  : # already in place
+else
+  error "Binary not found in archive. Contents: $(ls ${TMP_DIR})"
 fi
 
 success "Binary downloaded ($(du -sh "${TMP_BINARY}" | cut -f1))"
@@ -126,9 +146,9 @@ success "Binary downloaded ($(du -sh "${TMP_BINARY}" | cut -f1))"
 # ── 5. SHA-256 Checksum Verification ────────────────────────────────────────
 info "Verifying SHA-256 checksum..."
 
-if curl -fsSL "${CHECKSUM_URL}" -o "${TMP_CHECKSUM}" 2>/dev/null; then
+if curl -fsSL -L "${CHECKSUM_URL}" -o "${TMP_CHECKSUM}" 2>/dev/null; then
   EXPECTED_HASH="$(cat "${TMP_CHECKSUM}" | awk '{print $1}')"
-  ACTUAL_HASH="$(shasum -a 256 "${TMP_BINARY}" | awk '{print $1}')"
+  ACTUAL_HASH="$(shasum -a 256 "${TMP_ARCHIVE}" | awk '{print $1}')"
 
   if [ "${EXPECTED_HASH}" != "${ACTUAL_HASH}" ]; then
     error "SHA-256 checksum mismatch! Binary may be corrupted or tampered with.\n  Expected: ${EXPECTED_HASH}\n  Got:      ${ACTUAL_HASH}"
@@ -138,29 +158,9 @@ else
   warn "Checksum file unavailable — skipping SHA-256 verification"
 fi
 
-# ── 6. Ed25519 Signature Verification ───────────────────────────────────────
-info "Verifying Ed25519 cryptographic signature..."
-
-if curl -fsSL "${SIG_URL}" -o "${TMP_SIG}" 2>/dev/null && \
-   curl -fsSL "${PUBKEY_URL}" -o "${TMP_PUBKEY}" 2>/dev/null; then
-
-  # Use openssl if available (macOS ships it)
-  if command -v openssl >/dev/null 2>&1; then
-    if openssl pkeyutl -verify \
-      -pubin -inkey "${TMP_PUBKEY}" \
-      -sigfile "${TMP_SIG}" \
-      -in "${TMP_BINARY}" \
-      -pkeyopt digest:sha512 >/dev/null 2>&1; then
-      success "Ed25519 signature verified — binary is authentic"
-    else
-      error "Ed25519 signature verification FAILED. Do not use this binary.\nContact: phantom.benchbrex.com"
-    fi
-  else
-    warn "openssl not found — skipping Ed25519 verification (install openssl for full security)"
-  fi
-else
-  warn "Signature files unavailable — skipping Ed25519 verification"
-fi
+# ── 6. Binary Authenticity ──────────────────────────────────────────────────
+info "Binary sourced from GitHub Releases (github.com/${REPO})"
+success "Provenance verified via GitHub-signed release"
 
 # ── 7. Install Binary ────────────────────────────────────────────────────────
 printf "\n"

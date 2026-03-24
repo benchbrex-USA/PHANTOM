@@ -1104,7 +1104,7 @@ mod self_healing_errors {
     #[test]
     fn test_backoff_has_max_cap() {
         let healer = SelfHealer::new();
-        let d10 = healer.backoff_delay(10);
+        let _d10 = healer.backoff_delay(10);
         let d20 = healer.backoff_delay(20);
 
         // Should be capped at some reasonable max (retry_max_delay_ms = 30_000)

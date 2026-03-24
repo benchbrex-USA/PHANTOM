@@ -203,22 +203,23 @@ phantom master halt                    Emergency stop all agents
 ## License Format
 
 ```
-PH1-<base64url_payload>-<base64url_signature>
+PH1-<base62_payload>-<base62_signature>
 ```
 
 Payload (JSON):
 ```json
 {
-  "v": 1,
-  "mid": "<machine_fingerprint_hex>",
+  "sub": "user@example.com",
+  "org": "benchbrex",
+  "tier": "founder",
+  "caps": ["build", "deploy", "monitor", "admin"],
   "iat": 1710000000,
   "exp": 1741536000,
-  "cap": ["cto", "architect", "backend", "frontend", "devops", "qa", "security", "monitor"],
-  "tier": "founder"
+  "iid": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
 }
 ```
 
-Licenses are Ed25519-signed and bound to a specific machine's fingerprint. Capabilities control which agents can be spawned.
+Licenses are Ed25519-signed with base62 encoding. The `iid` (installation ID) is a unique 16-byte hex identifier per activation. Capabilities control which features are available.
 
 ---
 
@@ -237,6 +238,67 @@ Additional provider credentials are managed through the credential vault after a
 
 ---
 
+## Getting Started
+
+### 1. Install
+
+```bash
+# One-line install (macOS arm64/x64)
+curl -fsSL https://raw.githubusercontent.com/benchbrex-USA/BenchBrex-PHANTOM/main/install.sh | sh
+
+# Or build from source
+git clone https://github.com/benchbrex-USA/BenchBrex-PHANTOM.git
+cd BenchBrex-PHANTOM
+cargo build --release
+# Binary at target/release/phantom
+```
+
+### 2. Set your Anthropic API key
+
+Phantom's 8-agent team is powered by Claude. You need an API key from [console.anthropic.com](https://console.anthropic.com):
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+Add this to your `~/.zshrc` (or `~/.bash_profile`) so it persists:
+
+```bash
+echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### 3. Activate with your license key
+
+```bash
+phantom activate --key PH1-xxxxx-xxxxx
+```
+
+This verifies your license, bootstraps dependencies, and provisions infrastructure.
+
+### 4. Check system health
+
+```bash
+phantom doctor
+```
+
+### 5. Build a project
+
+```bash
+phantom build --framework docs/my_architecture.md
+```
+
+### 6. Monitor
+
+```bash
+phantom status --live    # TUI dashboard
+phantom agents           # Agent status
+phantom logs             # Stream logs
+phantom cost             # Cost tracking
+```
+
+---
+
 ## Building from Source
 
 ```bash
@@ -245,7 +307,7 @@ git clone https://github.com/benchbrex-USA/BenchBrex-PHANTOM.git
 cd BenchBrex-PHANTOM
 cargo build --release
 
-# Binary at target/release/phantom-cli
+# Binary at target/release/phantom
 ```
 
 Release profile: LTO enabled, single codegen unit, symbols stripped, abort on panic.
