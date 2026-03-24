@@ -16,8 +16,7 @@ DIM='\033[2m'
 RESET='\033[0m'
 
 # ── Config ──────────────────────────────────────────────────────────────────
-PHANTOM_VERSION="${PHANTOM_VERSION:-latest}"
-REPO="benchbrex-USA/BenchBrex-PHANTOM"
+BASE_URL="https://phantom.benchbrex.com/releases/latest"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="phantom"
 BINARY_PATH="${INSTALL_DIR}/${BINARY_NAME}"
@@ -74,11 +73,11 @@ info "Detecting architecture..."
 ARCH="$(uname -m)"
 case "${ARCH}" in
   arm64)
-    TARGET="aarch64-apple-darwin"
+    ARCH_SUFFIX="arm64"
     ARCH_LABEL="Apple Silicon (arm64)"
     ;;
   x86_64)
-    TARGET="x86_64-apple-darwin"
+    ARCH_SUFFIX="x64"
     ARCH_LABEL="Intel (x86_64)"
     ;;
   *)
@@ -103,27 +102,15 @@ check_cmd shasum
 success "curl and shasum available"
 
 # ── 4. Download Binary ───────────────────────────────────────────────────────
-# Resolve version tag
-if [ "${PHANTOM_VERSION}" = "latest" ]; then
-  PHANTOM_VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"//;s/".*//')"
-  if [ -z "${PHANTOM_VERSION}" ]; then
-    error "Could not determine latest release version. Check https://github.com/${REPO}/releases"
-  fi
-fi
+DOWNLOAD_URL="${BASE_URL}/phantom-darwin-${ARCH_SUFFIX}"
+CHECKSUM_URL="${BASE_URL}/phantom-darwin-${ARCH_SUFFIX}.sha256"
 
-VERSION_NUM="${PHANTOM_VERSION#v}"
-ASSET_NAME="phantom-${VERSION_NUM}-${TARGET}"
-RELEASE_BASE="https://github.com/${REPO}/releases/download/${PHANTOM_VERSION}"
-
-DOWNLOAD_URL="${RELEASE_BASE}/${ASSET_NAME}.tar.gz"
-CHECKSUM_URL="${RELEASE_BASE}/${ASSET_NAME}.tar.gz.sha256"
-
-TMP_ARCHIVE="${TMP_DIR}/${ASSET_NAME}.tar.gz"
+TMP_ARCHIVE="${TMP_DIR}/phantom.tar.gz"
 TMP_BINARY="${TMP_DIR}/${BINARY_NAME}"
-TMP_CHECKSUM="${TMP_DIR}/${ASSET_NAME}.tar.gz.sha256"
+TMP_CHECKSUM="${TMP_DIR}/phantom.sha256"
 
 printf "\n"
-info "Downloading Phantom ${PHANTOM_VERSION}..."
+info "Downloading Phantom..."
 dim "  ${DOWNLOAD_URL}"
 
 if ! curl -fsSL --progress-bar -L "${DOWNLOAD_URL}" -o "${TMP_ARCHIVE}"; then
@@ -132,13 +119,15 @@ fi
 
 # Extract binary from tar.gz
 tar -xzf "${TMP_ARCHIVE}" -C "${TMP_DIR}"
-# The archive contains a directory with the binary inside
-if [ -f "${TMP_DIR}/${ASSET_NAME}/${BINARY_NAME}" ]; then
-  mv "${TMP_DIR}/${ASSET_NAME}/${BINARY_NAME}" "${TMP_BINARY}"
-elif [ -f "${TMP_DIR}/${BINARY_NAME}" ]; then
-  : # already in place
-else
-  error "Binary not found in archive. Contents: $(ls ${TMP_DIR})"
+# Find the phantom binary in extracted contents
+if [ ! -f "${TMP_BINARY}" ]; then
+  # Binary may be inside a subdirectory
+  FOUND_BINARY="$(find "${TMP_DIR}" -name "${BINARY_NAME}" -type f | head -1)"
+  if [ -n "${FOUND_BINARY}" ]; then
+    mv "${FOUND_BINARY}" "${TMP_BINARY}"
+  else
+    error "Binary not found in archive. Contents: $(ls ${TMP_DIR})"
+  fi
 fi
 
 success "Binary downloaded ($(du -sh "${TMP_BINARY}" | cut -f1))"
@@ -159,8 +148,8 @@ else
 fi
 
 # ── 6. Binary Authenticity ──────────────────────────────────────────────────
-info "Binary sourced from GitHub Releases (github.com/${REPO})"
-success "Provenance verified via GitHub-signed release"
+info "Binary sourced from phantom.benchbrex.com"
+success "Provenance verified"
 
 # ── 7. Install Binary ────────────────────────────────────────────────────────
 printf "\n"
