@@ -70,9 +70,8 @@ mod macos_bridge {
         let result = bridge.run_applescript("this is not valid applescript @@!!");
         if cfg!(target_os = "macos") {
             // Should return a result with success=false or an error
-            match result {
-                Ok(r) => assert!(!r.success),
-                Err(_) => {} // Also acceptable
+            if let Ok(r) = result {
+                assert!(!r.success);
             }
         }
     }

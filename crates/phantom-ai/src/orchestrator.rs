@@ -1756,7 +1756,7 @@ Then I'll output the architecture:
 
     #[test]
     fn test_knowledge_sources_tracking() {
-        let chunks = vec![
+        let chunks = [
             KnowledgeChunk {
                 source: "API_Expert".into(),
                 heading: "REST Design".into(),
@@ -1797,7 +1797,7 @@ Then I'll output the architecture:
 
         for (role_str, expected) in &roles {
             let resolved = parse_role_from_agent_id(role_str)
-                .or_else(|| match *role_str {
+                .or(match *role_str {
                     "cto" => Some(AgentRole::Cto),
                     "architect" => Some(AgentRole::Architect),
                     "backend" => Some(AgentRole::Backend),

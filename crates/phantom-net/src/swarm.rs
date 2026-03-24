@@ -113,8 +113,10 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let keypair = Keypair::generate_ed25519();
-            let mut config = MeshConfig::default();
-            config.idle_timeout_secs = 120;
+            let config = MeshConfig {
+                idle_timeout_secs: 120,
+                ..MeshConfig::default()
+            };
             let swarm = build_swarm(&config, &keypair);
             assert!(swarm.is_ok());
         });

@@ -435,7 +435,8 @@ fn test_crdt_three_node_mesh() {
 
     // Full mesh sync
     for _ in 0..3 {
-        for (id_x, id_y, x, y) in [("a", "b", &mut a as &mut CrdtSync, &mut b as &mut CrdtSync)] {
+        {
+            let (id_x, id_y, x, y) = ("a", "b", &mut a as &mut CrdtSync, &mut b as &mut CrdtSync);
             if let Some(msg) = x.generate_sync_message(id_y) {
                 y.receive_sync_message(id_x, &msg).unwrap();
             }
@@ -614,7 +615,7 @@ async fn test_zero_footprint_session_cleanup() {
     std::fs::write(&secret_file, b"secret-key-material").unwrap();
     std::fs::write(&data_file, b"{\"tasks\": []}").unwrap();
 
-    let mut session = RuntimeSession::bootstrap(&[tmp.clone()], false).unwrap();
+    let mut session = RuntimeSession::bootstrap(std::slice::from_ref(&tmp), false).unwrap();
     session.track_temp_file(secret_file.clone());
     session.track_temp_file(data_file.clone());
     session

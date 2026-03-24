@@ -1048,8 +1048,10 @@ mod tests {
 
     #[test]
     fn test_push_log_capped() {
-        let mut state = DashboardState::default();
-        state.max_log_lines = 3;
+        let mut state = DashboardState {
+            max_log_lines: 3,
+            ..DashboardState::default()
+        };
         for i in 0..5 {
             state.push_log(format!("line {}", i));
         }

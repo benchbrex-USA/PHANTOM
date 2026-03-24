@@ -368,7 +368,7 @@ fn test_task_graph_cycle_detection() {
 
 #[test]
 fn test_task_graph_stats() {
-    use phantom_core::task_graph::{Task, TaskGraph, TaskStatus};
+    use phantom_core::task_graph::{Task, TaskGraph};
 
     let mut graph = TaskGraph::new();
 
