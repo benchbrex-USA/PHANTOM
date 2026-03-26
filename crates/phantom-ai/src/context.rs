@@ -26,6 +26,7 @@ pub fn context_window(model: &str) -> usize {
         "claude-opus-4-6" => 200_000,
         "claude-sonnet-4-6" => 200_000,
         "claude-haiku-4-5-20251001" => 200_000,
+        m if m.contains("deepseek") => 128_000,
         _ => 100_000, // Conservative default
     }
 }

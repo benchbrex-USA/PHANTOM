@@ -5,15 +5,20 @@
 //! CTO Agent orchestrates all specialist agents.
 
 pub mod agents;
+pub mod backend;
 pub mod claude_md;
 pub mod client;
 pub mod context;
 pub mod errors;
+pub mod file_parser;
+pub mod ollama;
 pub mod orchestrator;
 pub mod prompts;
 pub mod tools;
 
 pub use agents::{AgentConfig, AgentRole, ALL_ROLES};
+pub use backend::AiBackend;
+pub use file_parser::{parse_file_output, ParsedFile};
 pub use claude_md::{
     cleanup_all as cleanup_claude_mds, generate_team_claude_mds, ClaudeMdError, ClaudeMdGenerator,
     GeneratedClaudeMd, TemplateVars,

@@ -554,12 +554,12 @@ pub struct CostEstimate {
 }
 
 /// Check if an error is retryable.
-fn is_retryable(error: &AiError) -> bool {
+pub(crate) fn is_retryable(error: &AiError) -> bool {
     matches!(error, AiError::RateLimited { .. } | AiError::Http(_))
 }
 
 /// Exponential backoff with jitter.
-fn backoff_delay(attempt: u32) -> Duration {
+pub(crate) fn backoff_delay(attempt: u32) -> Duration {
     let base_ms = 1000u64 * 2u64.pow(attempt.min(5));
     // Simple pseudo-jitter: use attempt number to vary
     let jitter_ms = (attempt as u64 * 137) % 500;

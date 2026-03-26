@@ -24,7 +24,8 @@ use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tracing::{debug, info, instrument, warn};
 
 use crate::agents::AgentRole;
-use crate::client::{AnthropicClient, CompletionRequest, CompletionResponse, Message, TokenUsage};
+use crate::backend::AiBackend;
+use crate::client::{CompletionRequest, CompletionResponse, Message, TokenUsage};
 use crate::context::{ContextManager, KnowledgeChunk};
 use crate::errors::AiError;
 use crate::prompts::{agent_system_prompt, task_prompt};
@@ -202,7 +203,7 @@ struct AgentWorker {
     /// Context manager for prompt assembly
     context: ContextManager,
     /// Shared Anthropic API client
-    client: Arc<Mutex<AnthropicClient>>,
+    client: Arc<Mutex<AiBackend>>,
     /// Task receive channel
     task_rx: mpsc::Receiver<WorkerTask>,
     /// Delegation sender (back to orchestrator)
@@ -220,7 +221,7 @@ impl AgentWorker {
     fn new(
         agent_id: String,
         role: AgentRole,
-        client: Arc<Mutex<AnthropicClient>>,
+        client: Arc<Mutex<AiBackend>>,
         task_rx: mpsc::Receiver<WorkerTask>,
         delegation_tx: mpsc::Sender<(DelegationRequest, oneshot::Sender<DelegationResult>)>,
     ) -> Self {
@@ -562,7 +563,7 @@ pub struct AgentUsageStats {
 /// # Usage
 ///
 /// ```ignore
-/// let client = AnthropicClient::from_env()?;
+/// let client = AiBackend::auto_detect()?;
 /// let orch = AgentOrchestrator::new(client, OrchestratorConfig::default());
 /// let handle = orch.start().await;
 ///
@@ -576,14 +577,14 @@ pub struct AgentUsageStats {
 /// ```
 pub struct AgentOrchestrator {
     /// Shared Anthropic client
-    client: Arc<Mutex<AnthropicClient>>,
+    client: Arc<Mutex<AiBackend>>,
     /// Configuration
     config: OrchestratorConfig,
 }
 
 impl AgentOrchestrator {
     /// Create a new orchestrator.
-    pub fn new(client: AnthropicClient, config: OrchestratorConfig) -> Self {
+    pub fn new(client: AiBackend, config: OrchestratorConfig) -> Self {
         Self {
             client: Arc::new(Mutex::new(client)),
             config,
@@ -591,7 +592,7 @@ impl AgentOrchestrator {
     }
 
     /// Create with default config.
-    pub fn with_client(client: AnthropicClient) -> Self {
+    pub fn with_client(client: AiBackend) -> Self {
         Self::new(client, OrchestratorConfig::default())
     }
 
@@ -697,7 +698,7 @@ pub struct OrchestratorHandle {
     /// Aggregated usage stats
     usage: Arc<RwLock<OrchestratorUsage>>,
     /// Client ref for usage queries
-    client: Arc<Mutex<AnthropicClient>>,
+    client: Arc<Mutex<AiBackend>>,
     /// Config
     config: OrchestratorConfig,
     /// Worker join handles (kept alive)
@@ -896,10 +897,10 @@ impl OrchestratorHandle {
         self.usage.read().await.clone()
     }
 
-    /// Get API client usage (from the underlying AnthropicClient).
+    /// Get API client usage (from the underlying AiBackend).
     pub async fn client_usage(&self) -> HashMap<String, TokenUsage> {
         let client = self.client.lock().await;
-        client.all_usage().clone()
+        client.all_usage()
     }
 
     /// Get total tokens used.
@@ -1686,7 +1687,7 @@ Waiting for delegation."#;
 
     #[tokio::test]
     async fn test_orchestrator_start_and_worker_count() {
-        let client = AnthropicClient::new("test-key");
+        let client = AiBackend::anthropic("test-key");
         let orch = AgentOrchestrator::with_client(client);
         let handle = orch.start().await;
 
@@ -1703,7 +1704,7 @@ Waiting for delegation."#;
 
     #[tokio::test]
     async fn test_orchestrator_has_all_roles() {
-        let client = AnthropicClient::new("test-key");
+        let client = AiBackend::anthropic("test-key");
         let orch = AgentOrchestrator::with_client(client);
         let handle = orch.start().await;
 
