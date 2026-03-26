@@ -71,6 +71,12 @@ struct OllamaResponseMessage {
     content: String,
 }
 
+impl Default for OllamaClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OllamaClient {
     /// Create a new Ollama client with default settings.
     pub fn new() -> Self {
@@ -122,7 +128,11 @@ impl OllamaClient {
         for attempt in 0..=self.max_retries {
             if attempt > 0 {
                 let delay = backoff_delay(attempt);
-                debug!(attempt, delay_ms = delay.as_millis(), "retrying after backoff");
+                debug!(
+                    attempt,
+                    delay_ms = delay.as_millis(),
+                    "retrying after backoff"
+                );
                 tokio::time::sleep(delay).await;
             }
 

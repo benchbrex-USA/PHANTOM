@@ -10,8 +10,8 @@ use std::path::Path;
 use std::time::Instant;
 
 use phantom_ai::{
-    AgentOrchestrator, AgentRole, AiBackend, OrchestratorConfig, TaskRequest,
-    parse_file_output, ParsedFile,
+    parse_file_output, AgentOrchestrator, AgentRole, AiBackend, OrchestratorConfig, ParsedFile,
+    TaskRequest,
 };
 use phantom_brain::{BrainConfig, KnowledgeBrain, KnowledgeQuery};
 use phantom_core::framework_ingestion::{IngestionPipeline, PlanGenerator};
@@ -180,10 +180,7 @@ pub async fn run(
     let backend = AiBackend::auto_detect()
         .map_err(|e| anyhow::anyhow!("Failed to initialize AI backend: {}", e))?;
 
-    println!(
-        "\x1b[1;32m  ✓ AI Backend\x1b[0m {}",
-        backend.backend_name()
-    );
+    println!("\x1b[1;32m  ✓ AI Backend\x1b[0m {}", backend.backend_name());
 
     // If Ollama, verify reachable
     if matches!(&backend, AiBackend::Ollama(_)) {
@@ -237,7 +234,12 @@ pub async fn run(
     println!("\n\x1b[1;34m▶ Phase 1: Infrastructure\x1b[0m");
     print!("  DevOps Agent...");
 
-    let kb_infra = query_brain(&brain, "infrastructure CI/CD Docker deployment provisioning", "devops").await;
+    let kb_infra = query_brain(
+        &brain,
+        "infrastructure CI/CD Docker deployment provisioning",
+        "devops",
+    )
+    .await;
 
     let infra_output = handle
         .submit_task(
@@ -280,7 +282,12 @@ pub async fn run(
     println!("\n\x1b[1;34m▶ Phase 2: Architecture\x1b[0m");
     print!("  Architect Agent...");
 
-    let kb_arch = query_brain(&brain, "system design database schema API contracts architecture patterns", "architect").await;
+    let kb_arch = query_brain(
+        &brain,
+        "system design database schema API contracts architecture patterns",
+        "architect",
+    )
+    .await;
 
     let arch_output = handle
         .submit_task(
@@ -324,7 +331,12 @@ pub async fn run(
 
     // Backend
     print!("  Backend Agent...");
-    let kb_be = query_brain(&brain, "FastAPI backend API authentication database SQLAlchemy", "backend").await;
+    let kb_be = query_brain(
+        &brain,
+        "FastAPI backend API authentication database SQLAlchemy",
+        "backend",
+    )
+    .await;
 
     let be_output = handle
         .submit_task(
@@ -370,7 +382,12 @@ pub async fn run(
 
     // Frontend
     print!("  Frontend Agent...");
-    let kb_fe = query_brain(&brain, "Next.js React TypeScript Tailwind dark mode WCAG accessibility design tokens", "frontend").await;
+    let kb_fe = query_brain(
+        &brain,
+        "Next.js React TypeScript Tailwind dark mode WCAG accessibility design tokens",
+        "frontend",
+    )
+    .await;
 
     let fe_output = handle
         .submit_task(
@@ -416,7 +433,12 @@ pub async fn run(
 
     // DevOps — CI/CD files
     print!("  DevOps Agent...");
-    let kb_do = query_brain(&brain, "GitHub Actions CI/CD pipeline Docker deployment branch protection pre-push", "devops").await;
+    let kb_do = query_brain(
+        &brain,
+        "GitHub Actions CI/CD pipeline Docker deployment branch protection pre-push",
+        "devops",
+    )
+    .await;
 
     let do_output = handle
         .submit_task(
@@ -461,7 +483,12 @@ pub async fn run(
     print!("  QA Agent...");
 
     let code_context = read_generated_context(&project_dir, 5);
-    let kb_qa = query_brain(&brain, "testing pytest Vitest coverage AI code errors edge cases", "qa").await;
+    let kb_qa = query_brain(
+        &brain,
+        "testing pytest Vitest coverage AI code errors edge cases",
+        "qa",
+    )
+    .await;
 
     let qa_output = handle
         .submit_task(
@@ -506,7 +533,12 @@ pub async fn run(
     print!("  Security Agent...");
 
     let audit_context = read_generated_context(&project_dir, 8);
-    let kb_sec = query_brain(&brain, "OWASP security audit authentication injection dependency vulnerabilities", "security").await;
+    let kb_sec = query_brain(
+        &brain,
+        "OWASP security audit authentication injection dependency vulnerabilities",
+        "security",
+    )
+    .await;
 
     let sec_output = handle
         .submit_task(
@@ -552,7 +584,12 @@ pub async fn run(
     print!("  DevOps Agent...");
 
     let deploy_context = read_generated_context(&project_dir, 5);
-    let kb_deploy = query_brain(&brain, "deployment Docker registry DNS TLS health checks production launch", "devops").await;
+    let kb_deploy = query_brain(
+        &brain,
+        "deployment Docker registry DNS TLS health checks production launch",
+        "devops",
+    )
+    .await;
 
     let deploy_output = handle
         .submit_task(
@@ -638,7 +675,13 @@ pub async fn run(
 
     // Update state.json
     let elapsed = build_start.elapsed();
-    update_state(&project_name, &project_dir, total_files, total_tokens, &elapsed)?;
+    update_state(
+        &project_name,
+        &project_dir,
+        total_files,
+        total_tokens,
+        &elapsed,
+    )?;
 
     // Shutdown orchestrator
     handle.shutdown().await;
@@ -677,7 +720,13 @@ fn sanitize_project_name(title: &str) -> String {
     title
         .to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect::<String>()
         .trim_matches('-')
         .to_string()
@@ -706,18 +755,12 @@ fn read_generated_context(project_dir: &Path, max_files: usize) -> String {
             if count >= max_files {
                 break;
             }
-            let ext = entry
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("");
+            let ext = entry.extension().and_then(|e| e.to_str()).unwrap_or("");
             if !extensions.contains(&ext) {
                 continue;
             }
             if let Ok(content) = std::fs::read_to_string(&entry) {
-                let relative = entry
-                    .strip_prefix(project_dir)
-                    .unwrap_or(&entry)
-                    .display();
+                let relative = entry.strip_prefix(project_dir).unwrap_or(&entry).display();
                 let truncated = if content.len() > 1500 {
                     &content[..1500]
                 } else {
@@ -746,7 +789,7 @@ fn walk_recursive(dir: &Path, files: &mut Vec<std::path::PathBuf>) -> std::io::R
             let path = entry.path();
             if path.is_dir() {
                 // Skip .git
-                if path.file_name().map_or(false, |n| n == ".git") {
+                if path.file_name().is_some_and(|n| n == ".git") {
                     continue;
                 }
                 walk_recursive(&path, files)?;
