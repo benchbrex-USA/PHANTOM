@@ -102,8 +102,8 @@ check_cmd shasum
 success "curl and shasum available"
 
 # ── 4. Download Binary ───────────────────────────────────────────────────────
-DOWNLOAD_URL="${BASE_URL}/phantom-darwin-${ARCH_SUFFIX}"
-CHECKSUM_URL="${BASE_URL}/phantom-darwin-${ARCH_SUFFIX}.sha256"
+DOWNLOAD_URL="${BASE_URL}/phantom-darwin-${ARCH_SUFFIX}.tar.gz"
+CHECKSUM_URL="${BASE_URL}/phantom-darwin-${ARCH_SUFFIX}.tar.gz.sha256"
 
 TMP_ARCHIVE="${TMP_DIR}/phantom.tar.gz"
 TMP_BINARY="${TMP_DIR}/${BINARY_NAME}"
