@@ -18,7 +18,6 @@ pub mod tools;
 
 pub use agents::{AgentConfig, AgentRole, ALL_ROLES};
 pub use backend::AiBackend;
-pub use file_parser::{parse_file_output, ParsedFile};
 pub use claude_md::{
     cleanup_all as cleanup_claude_mds, generate_team_claude_mds, ClaudeMdError, ClaudeMdGenerator,
     GeneratedClaudeMd, TemplateVars,
@@ -29,6 +28,7 @@ pub use client::{
 };
 pub use context::{ContextManager, ContextUsage, KnowledgeChunk};
 pub use errors::AiError;
+pub use file_parser::{parse_file_output, ParsedFile};
 pub use orchestrator::{
     AgentOrchestrator, AgentOutput, DelegationRequest, DelegationResult, OrchestratorConfig,
     OrchestratorHandle, OrchestratorUsage, PipelineBridge, PipelineTaskResult, TaskRequest,
