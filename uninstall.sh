@@ -69,7 +69,7 @@ if [ "$SKIP_CONFIRM" = false ]; then
   printf "    ${CYAN}4)${RESET}  ${BOLD}Cancel${RESET}           — Abort uninstall\n"
   printf "\n"
   printf "  ${BOLD}Enter choice [1-4]:${RESET} "
-  read -r CHOICE
+  read -r CHOICE < /dev/tty
 
   case "$CHOICE" in
     1) REMOVE_BINARY=true;  REMOVE_DATA=true  ;;
@@ -88,7 +88,7 @@ if [ "$SKIP_CONFIRM" = false ]; then
 
   printf "\n"
   printf "  ${YELLOW}Are you sure? This cannot be undone. [y/N]:${RESET} "
-  read -r CONFIRM
+  read -r CONFIRM < /dev/tty
   case "$CONFIRM" in
     y|Y|yes|YES) ;;
     *)
@@ -272,7 +272,7 @@ if [ "$REMOVE_DATA" = true ]; then
         # Create backup before modifying
         cp "$profile" "${profile}.phantom-backup"
         # Remove lines containing PHANTOM env vars
-        grep -v "PHANTOM_\|phantom_\|# Phantom\|# PHANTOM" "$profile" > "${profile}.tmp" 2>/dev/null || true
+        awk '/github\.com/ { print; next } /PHANTOM_|phantom_|# Phantom|# PHANTOM/ { next } { print }' "$profile" > "${profile}.tmp" 2>/dev/null || true
         mv "${profile}.tmp" "$profile"
         success "Cleaned Phantom references from $(basename "$profile") (backup: $(basename "$profile").phantom-backup)"
         SHELL_CLEANED=true
