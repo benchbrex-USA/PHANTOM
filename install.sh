@@ -23,12 +23,11 @@ BINARY_PATH="${INSTALL_DIR}/${BINARY_NAME}"
 TMP_DIR="$(mktemp -d)"
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
-info()    { printf "${CYAN}  →${RESET}  %s\n" "$1"; }
-success() { printf "${GREEN}  ✓${RESET}  %s\n" "$1"; }
-warn()    { printf "${YELLOW}  ⚠${RESET}  %s\n" "$1"; }
-error()   { printf "${RED}  ✗${RESET}  %s\n" "$1" >&2; exit 1; }
-bold()    { printf "${BOLD}%s${RESET}\n" "$1"; }
-dim()     { printf "${DIM}%s${RESET}\n" "$1"; }
+info()    { printf "  ${DIM}│${RESET}  ${DIM}→${RESET}  %s\n" "$1"; }
+success() { printf "  ${DIM}│${RESET}  ${GREEN}✓${RESET}  %s\n" "$1"; }
+warn()    { printf "  ${DIM}│${RESET}  ${YELLOW}!${RESET}  %s\n" "$1"; }
+error()   { printf "  ${DIM}│${RESET}  ${RED}✗${RESET}  %s\n" "$1" >&2; exit 1; }
+step()    { printf "\n  ${BOLD}%s${RESET} ${DIM}·${RESET} %s\n" "$1" "$2"; }
 
 cleanup() {
   rm -rf "${TMP_DIR}"
@@ -37,21 +36,12 @@ trap cleanup EXIT
 
 # ── Banner ───────────────────────────────────────────────────────────────────
 printf "\n"
-printf "${BOLD}${CYAN}"
-printf "  ██████╗ ██╗  ██╗ █████╗ ███╗   ██╗████████╗ ██████╗ ███╗   ███╗\n"
-printf "  ██╔══██╗██║  ██║██╔══██╗████╗  ██║╚══██╔══╝██╔═══██╗████╗ ████║\n"
-printf "  ██████╔╝███████║███████║██╔██╗ ██║   ██║   ██║   ██║██╔████╔██║\n"
-printf "  ██╔═══╝ ██╔══██║██╔══██║██║╚██╗██║   ██║   ██║   ██║██║╚██╔╝██║\n"
-printf "  ██║     ██║  ██║██║  ██║██║ ╚████║   ██║   ╚██████╔╝██║ ╚═╝ ██║\n"
-printf "  ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝    ╚═════╝ ╚═╝     ╚═╝\n"
-printf "${RESET}"
-printf "  ${DIM}Autonomous AI Software Builder — phantom.benchbrex.com${RESET}\n"
-printf "\n"
-printf "  ${BOLD}Installing Phantom...${RESET}\n"
-printf "\n"
+printf "  ${BOLD}${CYAN}phantom${RESET}\n"
+printf "  ${DIM}autonomous AI engineering system${RESET}\n"
+printf "  ${DIM}────────────────────────────────────────────${RESET}\n"
 
 # ── 1. Platform Check ────────────────────────────────────────────────────────
-info "Checking platform..."
+step "Step 1" "Platform detection"
 
 OS="$(uname -s)"
 if [ "${OS}" != "Darwin" ]; then
@@ -65,41 +55,39 @@ if [ "${MACOS_MAJOR}" -lt 13 ]; then
   error "Phantom requires macOS 13 (Ventura) or later. Your version: ${MACOS_VERSION}"
 fi
 
-success "macOS ${MACOS_VERSION} — compatible"
+success "macOS ${MACOS_VERSION}"
 
 # ── 2. Architecture Detection ────────────────────────────────────────────────
-info "Detecting architecture..."
-
 ARCH="$(uname -m)"
 case "${ARCH}" in
   arm64)
     ARCH_SUFFIX="arm64"
-    ARCH_LABEL="Apple Silicon (arm64)"
+    ARCH_LABEL="Apple Silicon"
     ;;
   x86_64)
     ARCH_SUFFIX="x64"
-    ARCH_LABEL="Intel (x86_64)"
+    ARCH_LABEL="Intel x86_64"
     ;;
   *)
-    error "Unsupported architecture: ${ARCH}. Expected arm64 or x86_64."
+    error "Unsupported architecture: ${ARCH}"
     ;;
 esac
 
-success "${ARCH_LABEL} detected"
+success "${ARCH_LABEL}"
 
 # ── 3. Check Dependencies ────────────────────────────────────────────────────
-info "Checking required tools..."
+step "Step 2" "Dependencies"
 
 check_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    error "Required tool not found: $1. Please install it and re-run."
+    error "Required tool not found: $1"
   fi
 }
 
 check_cmd curl
 check_cmd shasum
 
-success "curl and shasum available"
+success "curl, shasum"
 
 # ── 4. Download Binary ───────────────────────────────────────────────────────
 DOWNLOAD_URL="${BASE_URL}/phantom-darwin-${ARCH_SUFFIX}.tar.gz"
@@ -109,9 +97,8 @@ TMP_ARCHIVE="${TMP_DIR}/phantom.tar.gz"
 TMP_BINARY="${TMP_DIR}/${BINARY_NAME}"
 TMP_CHECKSUM="${TMP_DIR}/phantom.sha256"
 
-printf "\n"
-info "Downloading Phantom..."
-dim "  ${DOWNLOAD_URL}"
+step "Step 3" "Download"
+info "${DIM}${DOWNLOAD_URL}${RESET}"
 
 if ! curl -fsSL --progress-bar -L "${DOWNLOAD_URL}" -o "${TMP_ARCHIVE}"; then
   error "Failed to download from ${DOWNLOAD_URL}"
@@ -126,34 +113,31 @@ if [ ! -f "${TMP_BINARY}" ]; then
   if [ -n "${FOUND_BINARY}" ]; then
     mv "${FOUND_BINARY}" "${TMP_BINARY}"
   else
-    error "Binary not found in archive. Contents: $(ls ${TMP_DIR})"
+    error "Binary not found in archive"
   fi
 fi
 
-success "Binary downloaded ($(du -sh "${TMP_BINARY}" | cut -f1))"
+success "Downloaded $(du -sh "${TMP_BINARY}" | cut -f1 | tr -d ' ')"
 
 # ── 5. SHA-256 Checksum Verification ────────────────────────────────────────
-info "Verifying SHA-256 checksum..."
+step "Step 4" "Integrity verification"
 
 if curl -fsSL -L "${CHECKSUM_URL}" -o "${TMP_CHECKSUM}" 2>/dev/null; then
   EXPECTED_HASH="$(cat "${TMP_CHECKSUM}" | awk '{print $1}')"
   ACTUAL_HASH="$(shasum -a 256 "${TMP_ARCHIVE}" | awk '{print $1}')"
 
   if [ "${EXPECTED_HASH}" != "${ACTUAL_HASH}" ]; then
-    error "SHA-256 checksum mismatch! Binary may be corrupted or tampered with.\n  Expected: ${EXPECTED_HASH}\n  Got:      ${ACTUAL_HASH}"
+    error "SHA-256 checksum mismatch — binary may be corrupted or tampered with"
   fi
-  success "SHA-256 checksum verified"
+  success "SHA-256 verified"
 else
-  warn "Checksum file unavailable — skipping SHA-256 verification"
+  warn "Checksum file unavailable — skipping verification"
 fi
 
-# ── 6. Binary Authenticity ──────────────────────────────────────────────────
-info "Binary sourced from phantom.benchbrex.com"
-success "Provenance verified"
+info "Sourced from phantom.benchbrex.com"
 
-# ── 7. Install Binary ────────────────────────────────────────────────────────
-printf "\n"
-info "Installing to ${BINARY_PATH}..."
+# ── 6. Install Binary ────────────────────────────────────────────────────────
+step "Step 5" "Install"
 
 chmod +x "${TMP_BINARY}"
 
@@ -161,56 +145,51 @@ chmod +x "${TMP_BINARY}"
 if [ -w "${INSTALL_DIR}" ]; then
   mv "${TMP_BINARY}" "${BINARY_PATH}"
 else
-  info "Requesting sudo to write to ${INSTALL_DIR}..."
+  info "Requesting sudo to write to ${INSTALL_DIR}"
   sudo mv "${TMP_BINARY}" "${BINARY_PATH}"
 fi
 
 # Verify install
 if ! command -v phantom >/dev/null 2>&1; then
-  # Try direct path in case PATH not updated yet
   if [ ! -x "${BINARY_PATH}" ]; then
     error "Installation failed — binary not found at ${BINARY_PATH}"
   fi
 fi
 
-success "Phantom installed at ${BINARY_PATH}"
+success "Installed to ${BINARY_PATH}"
 
-# ── 8. Shell PATH Check ──────────────────────────────────────────────────────
+# ── 7. Shell PATH Check ──────────────────────────────────────────────────────
 case ":${PATH}:" in
   *":${INSTALL_DIR}:"*)
     ;;
   *)
-    warn "${INSTALL_DIR} is not in your PATH."
+    warn "${INSTALL_DIR} is not in your PATH"
     printf "\n"
-    printf "  Add this to your shell profile and restart your terminal:\n"
+    printf "  ${DIM}│${RESET}  Add to your shell profile:\n"
     printf "\n"
-    printf "    ${CYAN}# For zsh (default on macOS):${RESET}\n"
-    printf "    ${BOLD}echo 'export PATH=\"/usr/local/bin:\$PATH\"' >> ~/.zshrc && source ~/.zshrc${RESET}\n"
-    printf "\n"
-    printf "    ${CYAN}# For bash:${RESET}\n"
-    printf "    ${BOLD}echo 'export PATH=\"/usr/local/bin:\$PATH\"' >> ~/.bash_profile && source ~/.bash_profile${RESET}\n"
+    printf "  ${DIM}│${RESET}  ${DIM}# zsh (default on macOS):${RESET}\n"
+    printf "  ${DIM}│${RESET}  ${BOLD}echo 'export PATH=\"/usr/local/bin:\$PATH\"' >> ~/.zshrc${RESET}\n"
     printf "\n"
     ;;
 esac
 
-# ── 9. Version Check ─────────────────────────────────────────────────────────
+# ── 8. Version Check ─────────────────────────────────────────────────────────
 INSTALLED_VERSION="$("${BINARY_PATH}" --version 2>/dev/null || echo 'unknown')"
-success "Installed version: ${INSTALLED_VERSION}"
+success "Version: ${INSTALLED_VERSION}"
 
-# ── 10. Success Banner ───────────────────────────────────────────────────────
+# ── 9. Success ──────────────────────────────────────────────────────────────
 printf "\n"
-printf "${GREEN}${BOLD}  ════════════════════════════════════════════════${RESET}\n"
-printf "${GREEN}${BOLD}   Phantom installed successfully! 🎉${RESET}\n"
-printf "${GREEN}${BOLD}  ════════════════════════════════════════════════${RESET}\n"
+printf "  ${DIM}────────────────────────────────────────────${RESET}\n"
+printf "  ${GREEN}●${RESET} ${BOLD}Phantom installed successfully.${RESET}\n"
 printf "\n"
-printf "  ${BOLD}Next step — activate with your license key:${RESET}\n"
+printf "  ${BOLD}Next step${RESET} ${DIM}·${RESET} activate with your license key:\n"
 printf "\n"
-printf "    ${CYAN}phantom activate --key PH1-xxxxx-xxxxx${RESET}\n"
+printf "  ${DIM}│${RESET}  ${CYAN}phantom activate --key PH1-xxxxx-xxxxx${RESET}\n"
 printf "\n"
-printf "  ${DIM}Don't have a key? Visit: https://phantom.benchbrex.com${RESET}\n"
+printf "  ${DIM}Don't have a key? Visit phantom.benchbrex.com${RESET}\n"
 printf "\n"
-printf "  ${BOLD}Need help?${RESET}\n"
-printf "  ${DIM}→ phantom doctor          Check system health${RESET}\n"
-printf "  ${DIM}→ phantom --help          All commands${RESET}\n"
-printf "  ${DIM}→ phantom.benchbrex.com   Documentation${RESET}\n"
+printf "  ${BOLD}Commands${RESET}\n"
+printf "  ${DIM}│${RESET}  phantom doctor     ${DIM}· system health check${RESET}\n"
+printf "  ${DIM}│${RESET}  phantom --help     ${DIM}· all commands${RESET}\n"
+printf "  ${DIM}│${RESET}  phantom status     ${DIM}· system overview${RESET}\n"
 printf "\n"

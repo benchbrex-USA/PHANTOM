@@ -270,19 +270,44 @@ impl DashboardState {
     }
 }
 
+// ── Color Palette ───────────────────────────────────────────────────────────
+// Refined palette inspired by modern CLI tools (Claude Code, lazygit, etc.)
+
+const ACCENT: Color = Color::Rgb(129, 140, 248); // Indigo-400
+const GREEN: Color = Color::Rgb(74, 222, 128); // Green-400
+const YELLOW: Color = Color::Rgb(250, 204, 21); // Yellow-400
+const RED: Color = Color::Rgb(248, 113, 113); // Red-400
+const PINK: Color = Color::Rgb(244, 114, 182); // Pink-400
+const FG: Color = Color::Rgb(250, 250, 250); // Zinc-50
+const FG_MUTED: Color = Color::Rgb(161, 161, 170); // Zinc-400
+const FG_DIM: Color = Color::Rgb(82, 82, 91); // Zinc-600
+const BORDER: Color = Color::Rgb(39, 39, 42); // Zinc-800
+
 // ── Dashboard Render ────────────────────────────────────────────────────────
 
 /// Render the full dashboard to a ratatui frame.
 pub fn render(frame: &mut Frame, state: &DashboardState) {
+    // Clear with dark background
+    let bg = Block::default().style(Style::default().bg(Color::Rgb(9, 9, 11)));
+    frame.render_widget(bg, frame.area());
+
+    let outer = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // Top margin
+            Constraint::Min(0),    // Content
+        ])
+        .split(frame.area());
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),  // Header
             Constraint::Length(3),  // Progress bar
-            Constraint::Min(10),    // Main content (phases + agents)
-            Constraint::Length(10), // Logs
+            Constraint::Min(10),   // Main content (phases + agents)
+            Constraint::Length(12), // Logs (slightly taller)
         ])
-        .split(frame.area());
+        .split(outer[1]);
 
     render_header(frame, chunks[0], state);
     render_progress(frame, chunks[1], state);
@@ -290,7 +315,7 @@ pub fn render(frame: &mut Frame, state: &DashboardState) {
     // Split main content into phases (left) and agents (right)
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(30), Constraint::Min(40)])
+        .constraints([Constraint::Length(32), Constraint::Min(42)])
         .split(chunks[2]);
 
     render_phases(frame, main_chunks[0], state);
@@ -300,70 +325,102 @@ pub fn render(frame: &mut Frame, state: &DashboardState) {
 
 fn render_header(frame: &mut Frame, area: Rect, state: &DashboardState) {
     let uptime = format_duration(state.uptime_secs);
-    let status_color = if state.halted {
-        Color::Red
+
+    let status_indicator = if state.halted {
+        Span::styled(" ● ", Style::default().fg(RED))
     } else if state.current_phase == "complete" {
-        Color::Green
+        Span::styled(" ● ", Style::default().fg(GREEN))
     } else {
-        Color::Yellow
+        Span::styled(" ● ", Style::default().fg(YELLOW))
     };
+
+    let status_text = if state.halted {
+        Span::styled("halted", Style::default().fg(RED))
+    } else {
+        Span::styled(
+            state.current_phase.as_str(),
+            Style::default().fg(FG_MUTED),
+        )
+    };
+
+    let sep = Span::styled(" · ", Style::default().fg(FG_DIM));
 
     let header = Paragraph::new(Line::from(vec![
         Span::styled(
-            " PHANTOM ",
+            " phantom ",
             Style::default()
-                .fg(Color::White)
-                .bg(Color::Blue)
+                .fg(FG)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::raw("  "),
+        Span::styled(" ", Style::default()),
+        status_indicator,
+        status_text,
+        sep.clone(),
         Span::styled(
-            format!("Phase: {} ", state.current_phase),
-            Style::default().fg(status_color),
+            format!("{}/{} tasks", state.tasks_completed, state.tasks_total),
+            Style::default().fg(FG_MUTED),
         ),
-        Span::raw(" | "),
-        Span::raw(format!(
-            "Tasks: {}/{} ",
-            state.tasks_completed, state.tasks_total
-        )),
-        Span::raw(" | "),
-        Span::raw(format!("Peers: {} ", state.peer_count)),
-        Span::raw(" | "),
-        Span::raw(format!("Tokens: {} ", format_tokens(state.tokens_used))),
-        Span::raw(" | "),
-        Span::raw(format!("Cost: ${:.2} ", state.cost_usd)),
-        Span::raw(" | "),
-        Span::styled(format!("Up: {}", uptime), Style::default().fg(Color::Cyan)),
+        sep.clone(),
+        Span::styled(
+            format!("{} peers", state.peer_count),
+            Style::default().fg(FG_DIM),
+        ),
+        sep.clone(),
+        Span::styled(
+            format!("{} tokens", format_tokens(state.tokens_used)),
+            Style::default().fg(FG_DIM),
+        ),
+        sep.clone(),
+        Span::styled(
+            format!("${:.2}", state.cost_usd),
+            Style::default().fg(FG_DIM),
+        ),
+        sep,
+        Span::styled(uptime, Style::default().fg(FG_DIM)),
     ]))
-    .block(Block::default().borders(Borders::ALL));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(BORDER)),
+    );
 
     frame.render_widget(header, area);
 }
 
 fn render_progress(frame: &mut Frame, area: Rect, state: &DashboardState) {
+    let pct = (state.phase_progress * 100.0).round() as u16;
     let label = if state.halted {
-        "HALTED".to_string()
+        Span::styled("HALTED", Style::default().fg(RED).add_modifier(Modifier::BOLD))
     } else {
-        format!(
-            "{:.0}% — {}",
-            state.phase_progress * 100.0,
-            state.current_phase
+        Span::styled(
+            format!("{}%", pct),
+            Style::default().fg(FG_MUTED),
         )
     };
 
     let gauge_color = if state.halted {
-        Color::Red
+        RED
+    } else if state.current_phase == "complete" {
+        GREEN
     } else {
-        Color::Green
+        ACCENT
     };
 
     let progress = Gauge::default()
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Pipeline Progress"),
+                .border_style(Style::default().fg(BORDER))
+                .title(Span::styled(
+                    " Pipeline ",
+                    Style::default().fg(FG_DIM),
+                )),
         )
-        .gauge_style(Style::default().fg(gauge_color))
+        .gauge_style(
+            Style::default()
+                .fg(gauge_color)
+                .bg(Color::Rgb(24, 24, 27)),
+        )
         .ratio(state.phase_progress.clamp(0.0, 1.0))
         .label(label);
 
@@ -376,35 +433,37 @@ fn render_phases(frame: &mut Frame, area: Rect, state: &DashboardState) {
         .phases
         .iter()
         .map(|phase| {
-            let (icon, color) = match phase.status.as_str() {
-                "done" => ("✓", Color::Green),
-                "running" => ("▶", Color::Yellow),
-                "failed" => ("✗", Color::Red),
-                "skipped" => ("–", Color::DarkGray),
-                _ => (" ", Color::DarkGray),
+            let (icon, icon_color, name_color) = match phase.status.as_str() {
+                "done" => ("✓", GREEN, FG_DIM),
+                "running" => ("▶", ACCENT, FG),
+                "failed" => ("✗", RED, RED),
+                "skipped" => ("–", FG_DIM, FG_DIM),
+                _ => ("·", FG_DIM, FG_DIM),
             };
 
             let task_info = if phase.tasks_total > 0 {
-                format!(" ({}/{})", phase.tasks_done, phase.tasks_total)
+                Span::styled(
+                    format!(" {}/{}", phase.tasks_done, phase.tasks_total),
+                    Style::default().fg(FG_DIM),
+                )
             } else {
-                String::new()
+                Span::raw("")
             };
 
             ListItem::new(Line::from(vec![
-                Span::styled(format!(" {} ", icon), Style::default().fg(color)),
-                Span::styled(
-                    format!("{}{}", phase.name, task_info),
-                    Style::default().fg(if phase.status == "running" {
-                        Color::White
-                    } else {
-                        color
-                    }),
-                ),
+                Span::styled(format!("  {} ", icon), Style::default().fg(icon_color)),
+                Span::styled(phase.name.clone(), Style::default().fg(name_color)),
+                task_info,
             ]))
         })
         .collect();
 
-    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Phases"));
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(BORDER))
+            .title(Span::styled(" Phases ", Style::default().fg(FG_DIM))),
+    );
 
     frame.render_widget(list, area);
 }
@@ -414,17 +473,21 @@ fn render_agents(frame: &mut Frame, area: Rect, state: &DashboardState) {
         .agents
         .iter()
         .map(|agent| {
-            let status_style = match agent.status.as_str() {
-                "running" => Style::default().fg(Color::Green),
-                "waiting" => Style::default().fg(Color::Yellow),
-                "healing" => Style::default().fg(Color::Magenta),
-                "halted" | "stopped" => Style::default().fg(Color::Red),
-                "error" => Style::default().fg(Color::Red),
-                "idle" => Style::default().fg(Color::DarkGray),
-                _ => Style::default(),
+            let (status_icon, status_color) = match agent.status.as_str() {
+                "running" => ("●", GREEN),
+                "waiting" => ("●", YELLOW),
+                "healing" => ("●", PINK),
+                "halted" | "stopped" => ("●", RED),
+                "error" => ("●", RED),
+                "idle" => ("○", FG_DIM),
+                _ => ("○", FG_DIM),
             };
 
-            let task_display = agent.current_task.as_deref().unwrap_or("-").to_string();
+            let task_display = agent
+                .current_task
+                .as_deref()
+                .unwrap_or("–")
+                .to_string();
 
             let stats = format!(
                 "{}/{}",
@@ -433,30 +496,56 @@ fn render_agents(frame: &mut Frame, area: Rect, state: &DashboardState) {
             );
 
             Row::new(vec![
-                Cell::from(agent.name.clone()),
-                Cell::from(agent.status.clone()).style(status_style),
-                Cell::from(task_display),
-                Cell::from(format_tokens(agent.tokens_used)),
-                Cell::from(stats),
+                Cell::from(Span::styled(
+                    agent.name.clone(),
+                    Style::default().fg(FG_MUTED),
+                )),
+                Cell::from(Span::styled(
+                    format!("{} {}", status_icon, agent.status),
+                    Style::default().fg(status_color),
+                )),
+                Cell::from(Span::styled(
+                    task_display,
+                    Style::default().fg(FG_DIM),
+                )),
+                Cell::from(Span::styled(
+                    format_tokens(agent.tokens_used),
+                    Style::default().fg(FG_DIM),
+                )),
+                Cell::from(Span::styled(stats, Style::default().fg(FG_DIM))),
             ])
         })
         .collect();
+
+    let header_style = Style::default().fg(FG_DIM);
 
     let table = Table::new(
         rows,
         [
             Constraint::Length(18),
-            Constraint::Length(9),
+            Constraint::Length(12),
             Constraint::Min(20),
             Constraint::Length(10),
             Constraint::Length(7),
         ],
     )
     .header(
-        Row::new(vec!["Agent", "Status", "Current Task", "Tokens", "Done"])
-            .style(Style::default().add_modifier(Modifier::BOLD)),
+        Row::new(vec![
+            Cell::from(Span::styled("Agent", header_style)),
+            Cell::from(Span::styled("Status", header_style)),
+            Cell::from(Span::styled("Task", header_style)),
+            Cell::from(Span::styled("Tokens", header_style)),
+            Cell::from(Span::styled("Done", header_style)),
+        ])
+        .style(header_style)
+        .bottom_margin(0),
     )
-    .block(Block::default().borders(Borders::ALL).title("Agents"));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(BORDER))
+            .title(Span::styled(" Agents ", Style::default().fg(FG_DIM))),
+    );
 
     frame.render_widget(table, area);
 }
@@ -472,33 +561,39 @@ fn render_logs(frame: &mut Frame, area: Rect, state: &DashboardState) {
         .take(visible_lines)
         .rev()
         .map(|line| {
-            // Color-code log lines by content
             let style = if line.contains("[TaskFailed]") || line.contains("error") {
-                Style::default().fg(Color::Red)
+                Style::default().fg(RED)
             } else if line.contains("[TaskCompleted]") || line.contains("completed") {
-                Style::default().fg(Color::Green)
+                Style::default().fg(GREEN)
             } else if line.contains("[SelfHealing]") || line.contains("healing") {
-                Style::default().fg(Color::Magenta)
+                Style::default().fg(PINK)
             } else if line.contains("[system]") {
-                Style::default().fg(Color::Cyan)
+                Style::default().fg(ACCENT)
             } else {
-                Style::default().fg(Color::Gray)
+                Style::default().fg(FG_DIM)
             };
             Line::styled(line.as_str(), style)
         })
         .collect();
 
-    let scroll_indicator = if state.log_scroll > 0 {
-        format!("Logs [↑{}]", state.log_scroll)
+    let title = if state.log_scroll > 0 {
+        format!(" Logs ↑{} ", state.log_scroll)
     } else {
-        "Logs".to_string()
+        " Logs ".to_string()
     };
+
+    let keyhint = Span::styled(
+        " q=quit ↑↓=scroll ",
+        Style::default().fg(FG_DIM),
+    );
 
     let logs = Paragraph::new(log_text)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(scroll_indicator),
+                .border_style(Style::default().fg(BORDER))
+                .title(Span::styled(title, Style::default().fg(FG_DIM)))
+                .title_bottom(keyhint),
         )
         .wrap(Wrap { trim: false });
 
@@ -509,31 +604,40 @@ fn render_logs(frame: &mut Frame, area: Rect, state: &DashboardState) {
 
 /// Render a log-only view (for `phantom logs`).
 pub fn render_logs_view(frame: &mut Frame, state: &DashboardState, agent_filter: Option<&str>) {
+    // Clear with dark background
+    let bg = Block::default().style(Style::default().bg(Color::Rgb(9, 9, 11)));
+    frame.render_widget(bg, frame.area());
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(5)])
         .split(frame.area());
 
     // Header
-    let title = match agent_filter {
-        Some(agent) => format!("Phantom Logs — filtered: {}", agent),
-        None => "Phantom Logs — all agents".to_string(),
+    let filter_text = match agent_filter {
+        Some(agent) => format!("filtered: {}", agent),
+        None => "all agents".to_string(),
     };
     let header = Paragraph::new(Line::from(vec![
         Span::styled(
-            " PHANTOM LOGS ",
+            " phantom logs ",
             Style::default()
-                .fg(Color::White)
-                .bg(Color::Blue)
+                .fg(FG)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::raw("  "),
-        Span::raw(format!(
-            "{} entries | q=quit | ↑/↓=scroll",
-            state.log_lines.len()
-        )),
+        Span::styled(" · ", Style::default().fg(FG_DIM)),
+        Span::styled(filter_text, Style::default().fg(FG_MUTED)),
+        Span::styled(" · ", Style::default().fg(FG_DIM)),
+        Span::styled(
+            format!("{} entries", state.log_lines.len()),
+            Style::default().fg(FG_DIM),
+        ),
     ]))
-    .block(Block::default().borders(Borders::ALL).title(title));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(BORDER)),
+    );
     frame.render_widget(header, chunks[0]);
 
     // Logs
@@ -555,29 +659,36 @@ pub fn render_logs_view(frame: &mut Frame, state: &DashboardState, agent_filter:
         .rev()
         .map(|line| {
             let style = if line.contains("[TaskFailed]") || line.contains("error") {
-                Style::default().fg(Color::Red)
+                Style::default().fg(RED)
             } else if line.contains("[TaskCompleted]") {
-                Style::default().fg(Color::Green)
+                Style::default().fg(GREEN)
             } else if line.contains("[SelfHealing]") {
-                Style::default().fg(Color::Magenta)
+                Style::default().fg(PINK)
+            } else if line.contains("[system]") {
+                Style::default().fg(ACCENT)
             } else {
-                Style::default().fg(Color::Gray)
+                Style::default().fg(FG_DIM)
             };
             Line::styled(line.as_str(), style)
         })
         .collect();
 
-    let scroll_indicator = if state.log_scroll > 0 {
-        format!(" [↑{}] ", state.log_scroll)
+    let title = if state.log_scroll > 0 {
+        format!(" Stream ↑{} ", state.log_scroll)
     } else {
-        String::new()
+        " Stream ".to_string()
     };
 
     let logs = Paragraph::new(log_text)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!("Log Stream{}", scroll_indicator)),
+                .border_style(Style::default().fg(BORDER))
+                .title(Span::styled(title, Style::default().fg(FG_DIM)))
+                .title_bottom(Span::styled(
+                    " q=quit ↑↓=scroll G=bottom ",
+                    Style::default().fg(FG_DIM),
+                )),
         )
         .wrap(Wrap { trim: false });
     frame.render_widget(logs, chunks[1]);
@@ -626,6 +737,10 @@ impl Default for BrainSearchState {
 
 /// Render the brain search TUI panel.
 pub fn render_brain_search(frame: &mut Frame, state: &BrainSearchState) {
+    // Clear with dark background
+    let bg = Block::default().style(Style::default().bg(Color::Rgb(9, 9, 11)));
+    frame.render_widget(bg, frame.area());
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -636,52 +751,79 @@ pub fn render_brain_search(frame: &mut Frame, state: &BrainSearchState) {
         .split(frame.area());
 
     // Header
+    let db_color = if state.chromadb_status == "connected" {
+        GREEN
+    } else {
+        RED
+    };
+
     let header = Paragraph::new(Line::from(vec![
         Span::styled(
-            " KNOWLEDGE BRAIN ",
+            " knowledge brain ",
             Style::default()
-                .fg(Color::White)
-                .bg(Color::Magenta)
+                .fg(FG)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::raw("  "),
+        Span::styled(" · ", Style::default().fg(FG_DIM)),
+        Span::styled("●", Style::default().fg(db_color)),
         Span::styled(
-            format!("ChromaDB: {} ", state.chromadb_status),
-            Style::default().fg(if state.chromadb_status == "connected" {
-                Color::Green
-            } else {
-                Color::Red
-            }),
+            format!(" {} ", state.chromadb_status),
+            Style::default().fg(FG_MUTED),
         ),
-        Span::raw(" | "),
-        Span::raw(format!("{} results", state.results.len())),
-        Span::raw(" | q=quit ↑/↓=navigate"),
+        Span::styled(" · ", Style::default().fg(FG_DIM)),
+        Span::styled(
+            format!("{} results", state.results.len()),
+            Style::default().fg(FG_DIM),
+        ),
     ]))
-    .block(Block::default().borders(Borders::ALL));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(BORDER)),
+    );
     frame.render_widget(header, chunks[0]);
 
     // Search input
-    let search_label = if state.searching {
-        "Searching..."
+    let search_title = if state.searching {
+        Span::styled(" Searching… ", Style::default().fg(ACCENT))
     } else {
-        "Query"
+        Span::styled(" Query ", Style::default().fg(FG_DIM))
     };
+
     let input = Paragraph::new(Line::from(vec![
-        Span::raw("> "),
-        Span::styled(&state.query, Style::default().fg(Color::Yellow)),
+        Span::styled(" › ", Style::default().fg(ACCENT)),
+        Span::styled(state.query.as_str(), Style::default().fg(FG)),
     ]))
-    .block(Block::default().borders(Borders::ALL).title(search_label));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(BORDER))
+            .title(search_title),
+    );
     frame.render_widget(input, chunks[1]);
 
     // Results
+    let border_block = |title: &str| {
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(BORDER))
+            .title(Span::styled(
+                format!(" {} ", title),
+                Style::default().fg(FG_DIM),
+            ))
+    };
+
     if let Some(ref err) = state.error {
         let error_para =
-            Paragraph::new(Line::styled(err.as_str(), Style::default().fg(Color::Red)))
-                .block(Block::default().borders(Borders::ALL).title("Error"));
+            Paragraph::new(Line::styled(err.as_str(), Style::default().fg(RED)))
+                .block(border_block("Error"));
         frame.render_widget(error_para, chunks[2]);
     } else if state.results.is_empty() && !state.query.is_empty() {
-        let empty = Paragraph::new("No results found.")
-            .block(Block::default().borders(Borders::ALL).title("Results"));
+        let empty = Paragraph::new(Span::styled(
+            "No results found.",
+            Style::default().fg(FG_DIM),
+        ))
+        .block(border_block("Results"));
         frame.render_widget(empty, chunks[2]);
     } else {
         // Split results area: list on left, detail on right
@@ -696,41 +838,64 @@ pub fn render_brain_search(frame: &mut Frame, state: &BrainSearchState) {
             .iter()
             .enumerate()
             .map(|(i, r)| {
-                let style = if i == state.selected {
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD)
+                let (score_color, name_color) = if i == state.selected {
+                    (ACCENT, FG)
                 } else {
-                    Style::default()
+                    (FG_DIM, FG_MUTED)
                 };
+
+                let indicator = if i == state.selected { "›" } else { " " };
+
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!(" {:.0}% ", r.score * 100.0), style),
+                    Span::styled(
+                        format!(" {} ", indicator),
+                        Style::default().fg(ACCENT),
+                    ),
+                    Span::styled(
+                        format!("{:.0}% ", r.score * 100.0),
+                        Style::default().fg(score_color),
+                    ),
                     Span::styled(
                         format!("{}/{}", r.source, truncate_display(&r.heading, 20)),
-                        style,
+                        Style::default().fg(name_color),
                     ),
                 ]))
             })
             .collect();
 
-        let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Results"));
+        let list = List::new(items).block(border_block("Results"));
         frame.render_widget(list, result_chunks[0]);
 
         // Detail panel
         let detail = if let Some(result) = state.results.get(state.selected) {
-            let content = format!(
-                "Source: {}\nSection: {}\nRelevance: {:.1}%\n\n{}",
-                result.source,
-                result.heading,
-                result.score * 100.0,
-                result.content,
-            );
+            let content = vec![
+                Line::from(vec![
+                    Span::styled("Source:    ", Style::default().fg(FG_DIM)),
+                    Span::styled(result.source.as_str(), Style::default().fg(FG_MUTED)),
+                ]),
+                Line::from(vec![
+                    Span::styled("Section:  ", Style::default().fg(FG_DIM)),
+                    Span::styled(result.heading.as_str(), Style::default().fg(FG_MUTED)),
+                ]),
+                Line::from(vec![
+                    Span::styled("Relevance: ", Style::default().fg(FG_DIM)),
+                    Span::styled(
+                        format!("{:.1}%", result.score * 100.0),
+                        Style::default().fg(ACCENT),
+                    ),
+                ]),
+                Line::from(""),
+                Line::styled(result.content.as_str(), Style::default().fg(FG_MUTED)),
+            ];
             Paragraph::new(content)
                 .wrap(Wrap { trim: false })
-                .block(Block::default().borders(Borders::ALL).title("Detail"))
+                .block(border_block("Detail"))
         } else {
-            Paragraph::new("Select a result to view details.")
-                .block(Block::default().borders(Borders::ALL).title("Detail"))
+            Paragraph::new(Span::styled(
+                "Select a result to view details.",
+                Style::default().fg(FG_DIM),
+            ))
+            .block(border_block("Detail"))
         };
         frame.render_widget(detail, result_chunks[1]);
     }

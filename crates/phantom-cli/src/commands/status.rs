@@ -15,39 +15,62 @@ pub async fn run(live: bool) -> anyhow::Result<()> {
     }
 
     // Static status output
-    println!("\x1b[1mPhantom Status\x1b[0m\n");
-
-    println!("\x1b[1;34mSystem\x1b[0m");
-    println!("  Status:        \x1b[33midle\x1b[0m");
-    println!("  License:       not activated");
-    println!("  Master key:    not initialized");
+    println!();
+    println!(
+        "  \x1b[1mphantom\x1b[0m \x1b[2m·\x1b[0m \x1b[2mautonomous AI engineering system\x1b[0m"
+    );
+    println!("  \x1b[2m{}\x1b[0m", "─".repeat(44));
     println!();
 
-    println!("\x1b[1;34mBuild Pipeline\x1b[0m");
+    // System
+    println!("  \x1b[1mSystem\x1b[0m");
+    println!(
+        "  \x1b[2m│\x1b[0m  Status         \x1b[33m●\x1b[0m \x1b[33midle\x1b[0m"
+    );
+    println!("  \x1b[2m│\x1b[0m  License        \x1b[2m○\x1b[0m \x1b[2mnot activated\x1b[0m");
+    println!("  \x1b[2m│\x1b[0m  Master key     \x1b[2m○\x1b[0m \x1b[2mnot initialized\x1b[0m");
+    println!();
+
+    // Build Pipeline
+    println!("  \x1b[1mPipeline\x1b[0m");
     for phase in BuildPhase::all() {
-        println!("  {:<28} \x1b[90m--\x1b[0m", phase.display_name());
+        println!(
+            "  \x1b[2m│\x1b[0m  {:<26} \x1b[2m–\x1b[0m",
+            phase.display_name()
+        );
     }
     println!();
 
-    println!("\x1b[1;34mAgents\x1b[0m");
+    // Agents
+    println!("  \x1b[1mAgents\x1b[0m");
     for role in phantom_ai::ALL_ROLES {
-        println!("  {:<20} \x1b[90midle\x1b[0m", role.display_name());
+        println!(
+            "  \x1b[2m│\x1b[0m  {:<18} \x1b[2m○\x1b[0m \x1b[2midle\x1b[0m",
+            role.display_name()
+        );
     }
     println!();
 
-    println!("\x1b[1;34mInfrastructure\x1b[0m");
-    println!("  Providers:     0/14 authenticated");
-    println!("  Resources:     0 provisioned");
-    println!("  Mesh peers:    0 connected");
+    // Infrastructure
+    println!("  \x1b[1mInfrastructure\x1b[0m");
+    println!(
+        "  \x1b[2m│\x1b[0m  Providers       \x1b[2m0/14 authenticated\x1b[0m"
+    );
+    println!("  \x1b[2m│\x1b[0m  Resources       \x1b[2m0 provisioned\x1b[0m");
+    println!("  \x1b[2m│\x1b[0m  Mesh peers      \x1b[2m0 connected\x1b[0m");
     println!();
 
-    println!("\x1b[1;34mStorage\x1b[0m");
-    println!("  Vault entries: 0");
-    println!("  R2 blobs:      0");
-    println!("  State keys:    0");
+    // Storage
+    println!("  \x1b[1mStorage\x1b[0m");
+    println!("  \x1b[2m│\x1b[0m  Vault entries   \x1b[2m0\x1b[0m");
+    println!("  \x1b[2m│\x1b[0m  R2 blobs        \x1b[2m0\x1b[0m");
+    println!("  \x1b[2m│\x1b[0m  State keys      \x1b[2m0\x1b[0m");
     println!();
 
-    println!("Run `phantom status --live` for the real-time TUI dashboard.");
+    println!(
+        "  \x1b[2mRun \x1b[0mphantom status --live\x1b[2m for the real-time dashboard.\x1b[0m"
+    );
+    println!();
 
     Ok(())
 }
