@@ -5,7 +5,7 @@
 //! replication, and auto-recovery.
 
 use super::{
-    OutputFormat, RetryStrategy, Skill, SkillCategory, SkillComplexity, SkillId, SkillRegistry,
+    OutputFormat, RetryStrategy, Skill, SkillCategory, SkillComplexity, SkillRegistry,
 };
 use crate::agents::AgentRole;
 

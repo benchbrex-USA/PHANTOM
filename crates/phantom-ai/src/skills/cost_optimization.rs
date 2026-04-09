@@ -4,9 +4,7 @@
 //! serverless optimization, storage tiering, network costs, cost allocation,
 //! budget alerts, and carbon footprint estimation.
 
-use super::{
-    OutputFormat, RetryStrategy, Skill, SkillCategory, SkillComplexity, SkillId, SkillRegistry,
-};
+use super::{OutputFormat, Skill, SkillCategory, SkillComplexity, SkillRegistry};
 use crate::agents::AgentRole;
 
 /// Register all cost-optimization skills into the given registry.
