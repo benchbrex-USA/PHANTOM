@@ -20,6 +20,7 @@ pub mod framework_ingestion;
 pub mod job_queue;
 pub mod macos;
 pub mod message_bus;
+pub mod parallel_executor;
 pub mod pipeline;
 pub mod self_healer;
 pub mod task_graph;
@@ -44,6 +45,7 @@ pub use macos::{
 pub use message_bus::{Message, MessageBus, MessageKind};
 pub use pipeline::{BuildPhase, BuildPipeline};
 pub use self_healer::{HealingLayer, HealingResult, SelfHealer};
+pub use parallel_executor::{ExecutionMetrics, ExecutionReport, ParallelExecutor};
 pub use task_graph::{Task, TaskGraph, TaskStatus};
 pub use zero_footprint::{
     CleanupResult, DiskPolicy, RuntimeSession, SecureBuffer, SecureString, SessionGuard,

@@ -31,6 +31,30 @@ pub enum AiError {
 
     #[error("serialization error: {0}")]
     Serialization(String),
+
+    #[error("provider unavailable: {provider}")]
+    ProviderUnavailable { provider: String },
+
+    #[error("all providers failed for agent {agent_id}: {details}")]
+    AllProvidersFailed { agent_id: String, details: String },
+
+    #[error("provider not registered: {0}")]
+    ProviderNotRegistered(String),
+
+    #[error("routing failed: {0}")]
+    RoutingFailed(String),
+
+    #[error("model pull failed: {model} on {provider}")]
+    ModelPullFailed { model: String, provider: String },
+
+    #[error("cache error: {0}")]
+    CacheError(String),
+
+    #[error("config error: {0}")]
+    ConfigError(String),
+
+    #[error("concurrent limit reached for provider {provider}")]
+    ConcurrentLimitReached { provider: String },
 }
 
 impl From<reqwest::Error> for AiError {
