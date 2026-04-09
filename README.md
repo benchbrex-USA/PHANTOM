@@ -620,6 +620,99 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ---
 
+## Uninstall
+
+Completely remove Phantom and every trace it leaves on your system.
+
+### One-Line Uninstall (Interactive)
+
+```bash
+curl -fsSL https://phantom.benchbrex.com/uninstall.sh | sh
+```
+
+Or run locally:
+
+```bash
+./uninstall.sh
+```
+
+You'll be prompted to choose what to remove:
+
+| Option | What It Removes |
+|--------|----------------|
+| **1) Everything** | Binary + config + state + daemons + keychain entries + session artifacts + caches + env vars |
+| **2) Binary only** | Just `/usr/local/bin/phantom` — keeps your config & data for reinstall |
+| **3) Data only** | Config, state, daemons, keychain — keeps the binary |
+| **4) Cancel** | Abort — nothing is touched |
+
+### Silent Uninstall (No Prompts)
+
+```bash
+curl -fsSL https://phantom.benchbrex.com/uninstall.sh | sh -s -- --yes
+```
+
+### What Gets Removed (Full List)
+
+When you choose **"Everything"**, the uninstall script removes every single artifact:
+
+| Location | What |
+|----------|------|
+| `/usr/local/bin/phantom` | The Phantom binary |
+| `~/.phantom/` | State directory (`state.json`, build records, config) |
+| `~/Library/LaunchAgents/com.phantom.*.plist` | macOS LaunchAgent daemon plists |
+| macOS Keychain `com.phantom.*` | License keys, master key, API keys, credentials |
+| `.phantom-credentials`, `.phantom-env`, `.phantom-session`, `.phantom-state`, `.phantom.lock` | Zero-footprint session artifacts in project directories |
+| `/tmp/phantom*` | Temporary files from active sessions |
+| `~/Library/Application Support/phantom/` | Application support data |
+| `~/Library/Caches/phantom/` | Cached data |
+| `~/Library/Logs/phantom/` | Log files |
+| `~/Library/Preferences/com.phantom.plist` | macOS preferences |
+| `~/.zshrc`, `~/.bashrc`, `~/.bash_profile` etc. | `PHANTOM_*` environment variable exports (with backup) |
+
+**Running processes** are gracefully stopped before removal. **Shell profiles** are backed up before modification (e.g., `.zshrc.phantom-backup`).
+
+### Manual Uninstall
+
+If you prefer to do it yourself:
+
+```bash
+# 1. Stop all Phantom processes
+pkill -f phantom
+
+# 2. Unload and remove LaunchAgent daemons
+for plist in ~/Library/LaunchAgents/com.phantom.*.plist; do
+  launchctl unload "$plist" 2>/dev/null
+  rm -f "$plist"
+done
+
+# 3. Remove Keychain entries
+for svc in com.phantom.license com.phantom.master-key com.phantom.credentials com.phantom.agent-service com.phantom.api-keys; do
+  security delete-generic-password -s "$svc" 2>/dev/null
+done
+
+# 4. Remove data directory
+rm -rf ~/.phantom
+
+# 5. Remove binary
+sudo rm -f /usr/local/bin/phantom
+
+# 6. Remove caches and app support
+rm -rf ~/Library/Application\ Support/phantom
+rm -rf ~/Library/Caches/phantom
+rm -rf ~/Library/Logs/phantom
+rm -rf ~/Library/Preferences/com.phantom.plist
+rm -rf ~/Library/Preferences/com.benchbrex.phantom.plist
+
+# 7. Remove zero-footprint artifacts from project dirs
+find ~ -maxdepth 3 -name ".phantom-*" -type f -delete 2>/dev/null
+
+# 8. Clean shell profiles (remove PHANTOM_ env vars)
+# Check and manually remove any PHANTOM_ lines from:
+#   ~/.zshrc  ~/.bashrc  ~/.bash_profile  ~/.zprofile  ~/.profile
+```
+
+---
+
 ## Configuration
 
 ```bash

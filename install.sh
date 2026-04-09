@@ -193,3 +193,5 @@ printf "  ${DIM}│${RESET}  phantom doctor     ${DIM}· system health check${RE
 printf "  ${DIM}│${RESET}  phantom --help     ${DIM}· all commands${RESET}\n"
 printf "  ${DIM}│${RESET}  phantom status     ${DIM}· system overview${RESET}\n"
 printf "\n"
+printf "  ${DIM}To uninstall: curl -fsSL https://phantom.benchbrex.com/uninstall.sh | sh${RESET}\n"
+printf "\n"
