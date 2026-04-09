@@ -14,11 +14,13 @@ pub mod config;
 pub mod context;
 pub mod errors;
 pub mod file_parser;
+pub mod multi_agent;
 pub mod ollama;
 pub mod orchestrator;
 pub mod prompts;
 pub mod provider;
 pub mod router;
+pub mod skills;
 pub mod tools;
 
 pub use agents::{AgentConfig, AgentRole, ALL_ROLES};
@@ -48,4 +50,12 @@ pub use router::{ModelRouter, RouterConfig, RouterMetrics, ProviderStatus};
 pub use tools::{
     execute_tool, execute_tool_calls, parse_tool_calls, ToolCall, ToolDefinition, ToolRegistry,
     ToolResult,
+};
+pub use skills::{
+    Skill, SkillCategory, SkillComplexity, SkillExecution, SkillId, SkillRegistry, SkillRouter,
+    OutputFormat, RetryStrategy,
+};
+pub use multi_agent::{
+    CoordinationEngine, Conflict, ConflictType, ConsensusResult, MergeResult, QualityDimension,
+    QualityReport, ResolutionStrategy, VoteRecord, WorkloadStats,
 };
