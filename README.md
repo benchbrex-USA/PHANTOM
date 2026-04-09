@@ -627,7 +627,7 @@ Completely remove Phantom and every trace it leaves on your system.
 ### One-Line Uninstall (Interactive)
 
 ```bash
-curl -fsSL https://phantom.benchbrex.com/uninstall.sh | sh
+curl -fsSL https://raw.githubusercontent.com/benchbrex-USA/PHANTOM/main/uninstall.sh | sh
 ```
 
 Or run locally:
@@ -648,7 +648,7 @@ You'll be prompted to choose what to remove:
 ### Silent Uninstall (No Prompts)
 
 ```bash
-curl -fsSL https://phantom.benchbrex.com/uninstall.sh | sh -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/benchbrex-USA/PHANTOM/main/uninstall.sh | sh -s -- --yes
 ```
 
 ### What Gets Removed (Full List)

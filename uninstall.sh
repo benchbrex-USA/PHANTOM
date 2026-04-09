@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # PHANTOM — Autonomous AI Software Builder
-# Uninstall script: curl -fsSL https://phantom.benchbrex.com/uninstall.sh | sh
+# Uninstall script: curl -fsSL https://raw.githubusercontent.com/benchbrex-USA/PHANTOM/main/uninstall.sh | sh
 # Completely removes PHANTOM and all associated data from your system.
 # ---------------------------------------------------------------------------
 
@@ -349,7 +349,7 @@ elif [ "$REMOVE_BINARY" = true ]; then
   printf "${GREEN}${BOLD}  ════════════════════════════════════════════════${RESET}\n"
   printf "\n"
   printf "  ${DIM}Config and data preserved at ~/.phantom/${RESET}\n"
-  printf "  ${DIM}Reinstall: curl -fsSL https://phantom.benchbrex.com/install.sh | sh${RESET}\n"
+  printf "  ${DIM}Reinstall: curl -fsSL https://raw.githubusercontent.com/benchbrex-USA/PHANTOM/main/install.sh | sh${RESET}\n"
 elif [ "$REMOVE_DATA" = true ]; then
   printf "${GREEN}${BOLD}  ════════════════════════════════════════════════${RESET}\n"
   printf "${GREEN}${BOLD}   Phantom data removed.${RESET}\n"
@@ -360,6 +360,6 @@ elif [ "$REMOVE_DATA" = true ]; then
 fi
 
 printf "\n"
-printf "  ${DIM}Want to reinstall? → curl -fsSL https://phantom.benchbrex.com/install.sh | sh${RESET}\n"
+printf "  ${DIM}Want to reinstall? → curl -fsSL https://raw.githubusercontent.com/benchbrex-USA/PHANTOM/main/install.sh | sh${RESET}\n"
 printf "  ${DIM}Feedback?          → https://phantom.benchbrex.com/feedback${RESET}\n"
 printf "\n"
